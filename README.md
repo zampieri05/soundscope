@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 6 — enriquecimento determinístico entre fontes.
+> **Status:** Fase 7 — persistência de documentos RAW no Amazon S3.
 
 ## Objetivo
 
@@ -28,33 +28,34 @@ flowchart TD
     A[Spotify] --> E[Extract]
     B[TheAudioDB] --> E
     C[MusicBrainz] --> E
-    E --> R[(S3 / raw)]
+    E --> R[JSON RAW]
+    R --> S[(Amazon S3 / raw)]
     R --> T[Transform com Python]
-    T --> P[(S3 / processed)]
-    T --> D[(DynamoDB)]
-    P --> API[API]
-    D --> API
-    API --> W[Aplicação web]
+    T --> N[Dados NORMALIZED]
+    N --> EN[Dados ENRICHED]
 ```
 
 Em termos simples:
 
 ```text
-Fontes externas -> Extração -> JSON original -> RAW
-               -> Transformação e enriquecimento -> PROCESSED
-               -> Persistência -> API -> Frontend
+Fontes externas -> Extração -> RAW -----> Amazon S3
+                              `--------> Transformação -> NORMALIZED
+                                                        -> Enrichment -> ENRICHED
 ```
 
 ### Extract (extração)
 
 A aplicação envia requisições HTTP às APIs e recebe documentos JSON. A resposta é preservada com o mínimo possível de alterações, juntamente com metadados úteis de rastreabilidade, antes de qualquer regra de negócio. Isso possibilita auditoria e reprocessamento.
 
-O fluxo executável agora cobre **Extract**, **Transform** e **Enrichment**:
+O fluxo executável agora cobre **Extract**, persistência **RAW**, **Transform** e
+**Enrichment**:
 
 ```text
-TheAudioDB  ──► Extract ──► RAW ──► Transform ──► NORMALIZED ──┐
-                                                               ├──► Enrichment ──► ENRICHED
-MusicBrainz ──► Extract ──► RAW ──► Transform ──► NORMALIZED ──┘
+TheAudioDB  ──► Extract ──► RAW ──┬──► Amazon S3
+                                  └──► Transform ──► NORMALIZED ──┐
+                                                                  ├──► Enrichment ──► ENRICHED
+MusicBrainz ──► Extract ──► RAW ──┬──► Amazon S3                  │
+                                  └──► Transform ──► NORMALIZED ──┘
 ```
 
 O usuário informa o nome de um artista e cada cliente Python devolve o JSON original recebido. No TheAudioDB, o `idArtist` permite consultar os álbuns; no MusicBrainz, o MBID permite consultar detalhes do artista. Os transformers recebem esses documentos sem modificá-los e criam novos modelos normalizados. A combinação acontece somente depois e também cria um novo objeto; RAW e NORMALIZED permanecem intactos.
@@ -106,9 +107,41 @@ from src.pipeline.enrichment import enrich_artist
 enriched = enrich_artist(theaudiodb_normalized, musicbrainz_normalized)
 ```
 
-### Load (carga)
+### Persistência RAW no Amazon S3
 
-Após a transformação, os dados serão gravados na camada processada do S3 e os campos necessários à consulta rápida serão persistidos no DynamoDB. Essa etapa ainda será implementada; o modelo inicial será mantido pequeno e poderá evoluir com o uso real.
+`save_raw_json()` recebe o documento que o cliente já extraiu; a camada de
+storage não consulta APIs nem transforma dados. O corpo do objeto S3 é o próprio
+JSON recebido, sem envelope. Fonte, tipo, identificador e instante de extração
+UTC ficam na chave:
+
+```text
+raw/<source>/<entity_type>/<entity_id>/<YYYYMMDDTHHMMSSffffffZ>.json
+```
+
+Por exemplo:
+
+```text
+raw/theaudiodb/artists/123/20260910T150000000000Z.json
+```
+
+O timestamp com microssegundos evita a sobrescrita silenciosa de extrações
+anteriores, sem introduzir particionamento complexo. Guardar o RAW preserva a
+resposta original para auditoria, reprocessamento e consulta do histórico.
+
+O bucket deve existir e ser configurado externamente em
+`SOUNDSCOPE_S3_BUCKET`. O código não cria bucket, infraestrutura, políticas ou
+ACLs. O boto3 usa sua cadeia padrão de credenciais (por exemplo, perfil local,
+variáveis AWS padronizadas ou role do ambiente) e sua configuração padrão de
+região; nenhuma credencial é mantida no repositório.
+
+```python
+from src.storage import save_raw_json
+
+key = save_raw_json("theaudiodb", raw_document, "artists", "123")
+```
+
+A camada processada e os bancos de consulta continuam reservados para fases
+posteriores.
 
 ## RAW x NORMALIZED x ENRICHED
 
@@ -120,16 +153,13 @@ Após a transformação, os dados serão gravados na camada processada do S3 e o
 
 NORMALIZED não significa enriquecido: cada modelo normalizado continua associado a uma única fonte. ENRICHED é outro objeto, criado sem sobrescrever RAW ou NORMALIZED. A camada PROCESSED e a persistência pertencem a fases posteriores.
 
-Estrutura conceitual futura no bucket:
+Estrutura conceitual desta fase no bucket (o nome real é configurável):
 
 ```text
 soundscope-data/
-├── raw/
-│   ├── spotify/
-│   ├── theaudiodb/
-│   └── musicbrainz/
-└── processed/
-    └── artists/
+└── raw/
+    ├── theaudiodb/
+    └── musicbrainz/
 ```
 
 Essa separação representa uma forma simples de **Data Lake**: o original não é sobrescrito pelo dado preparado para consumo.
@@ -206,7 +236,7 @@ soundscope/
 │   │   ├── musicbrainz/
 │   │   ├── spotify/
 │   │   └── theaudiodb/   # cliente HTTP e runner manual
-│   ├── storage/          # acesso futuro a S3 e DynamoDB
+│   ├── storage/          # persistência de documentos RAW no S3
 │   └── utils/            # utilitários pequenos e compartilhados
 └── tests/                # testes automatizados espelhando o código de src
 ```
@@ -230,7 +260,9 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Preencha `THEAUDIODB_API_KEY` no `.env` e exporte a variável no terminal. O projeto usa somente `requests` como dependência de terceiros nesta etapa. Para pesquisar no TheAudioDB e visualizar o JSON RAW:
+Preencha `THEAUDIODB_API_KEY` no `.env` e exporte a variável no terminal. O
+projeto usa `requests` para HTTP e `boto3` para S3. Para pesquisar no TheAudioDB
+e visualizar o JSON RAW:
 
 ```bash
 export THEAUDIODB_API_KEY="sua_chave_aqui"
@@ -296,11 +328,16 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | `SPOTIFY_CLIENT_ID` | identificação pública do aplicativo Spotify |
 | `SPOTIFY_CLIENT_SECRET` | segredo do aplicativo Spotify |
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
-| `AWS_REGION` | região dos serviços AWS |
-| `S3_BUCKET_NAME` | bucket das camadas RAW e PROCESSED |
+| `AWS_REGION` | região opcional usada pela configuração padrão da AWS |
+| `SOUNDSCOPE_S3_BUCKET` | nome do bucket externo usado para documentos RAW |
 | `DYNAMODB_TABLE_NAME` | tabela de consulta da aplicação |
 
-Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase, `THEAUDIODB_API_KEY` é obrigatória para o TheAudioDB; `MUSICBRAINZ_USER_AGENT` é opcional porque há um valor público seguro como padrão.
+Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase,
+`THEAUDIODB_API_KEY` é obrigatória para o TheAudioDB;
+`MUSICBRAINZ_USER_AGENT` é opcional porque há um valor público seguro como
+padrão; e `SOUNDSCOPE_S3_BUCKET` é obrigatório somente ao salvar RAW. Não
+adicione credenciais AWS ao arquivo: o boto3 descobre credenciais pela cadeia
+padrão do SDK.
 
 ## Segurança
 
@@ -321,7 +358,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
 | Fontes | MusicBrainz | pesquisa e detalhes RAW por MBID implementados |
 | Fonte futura | Spotify | planejada |
-| Data Lake | Amazon S3 | planejado |
+| Data Lake | Amazon S3 | persistência RAW implementada; processed planejado |
 | Banco de consulta | Amazon DynamoDB | planejado |
 | Computação e API | Lambda e API Gateway | planejado |
 | Observabilidade | CloudWatch | planejado |
@@ -335,7 +372,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 4:** integração MusicBrainz
 - [x] **Fase 5:** transformação e normalização
 - [x] **Fase 6:** Data Enrichment
-- [ ] **Fase 7:** persistência RAW no Amazon S3
+- [x] **Fase 7:** persistência RAW no Amazon S3
 - [ ] **Fase 8:** persistência processada
 - [ ] **Fase 9:** DynamoDB
 - [ ] **Fase 10:** AWS Lambda + API Gateway
@@ -349,4 +386,8 @@ Cada fase deve produzir uma mudança pequena, testável e explicável. A priorid
 
 ## Estado atual e próximos limites
 
-As extrações RAW do TheAudioDB e MusicBrainz, suas transformações independentes e o enriquecimento em memória estão prontos. Não há recursos AWS, persistência, integração Spotify nem frontend funcional. Qualquer nova fase será iniciada somente em uma etapa futura.
+As extrações RAW do TheAudioDB e MusicBrainz, a persistência opcional desses
+documentos em um bucket S3 configurado externamente, suas transformações
+independentes e o enriquecimento em memória estão prontos. Nenhum recurso AWS é
+criado pelo projeto. Persistência processada, DynamoDB, Lambda, API Gateway,
+integração Spotify e frontend funcional continuam para fases futuras.
