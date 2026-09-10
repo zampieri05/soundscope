@@ -1,3 +1,5 @@
 # Testes
 
-Os testes automatizados serão adicionados junto às primeiras regras executáveis. A estrutura deverá acompanhar os módulos de `src/` sem depender de APIs ou recursos AWS reais nos testes unitários.
+Os testes automatizados acompanham os módulos de `src/`. Clientes HTTP e o
+cliente S3 são substituídos por mocks, portanto a suíte não depende de APIs nem
+de recursos AWS reais.
