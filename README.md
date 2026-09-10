@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 3 — extração de artistas e respectivas discografias no TheAudioDB.
+> **Status:** Fase 4 — extração RAW independente no TheAudioDB e no MusicBrainz.
 
 ## Objetivo
 
@@ -52,10 +52,12 @@ A aplicação envia requisições HTTP às APIs e recebe documentos JSON. A resp
 Nesta fase, o fluxo executável demonstra somente o **E = Extract** do ETL:
 
 ```text
-TheAudioDB API -> HTTP GET -> JSON -> Python
+             ┌── TheAudioDB ──► RAW
+Artist ──────┤
+             └── MusicBrainz ─► RAW
 ```
 
-O usuário informa o nome de um artista, o cliente Python faz a requisição e devolve o JSON original recebido. O `idArtist` dessa resposta pode então ser usado para consultar os álbuns do artista, também em formato RAW. Ainda não há transformação, enriquecimento ou persistência.
+O usuário informa o nome de um artista e cada cliente Python devolve o JSON original recebido. No TheAudioDB, o `idArtist` permite consultar os álbuns; no MusicBrainz, o MBID permite consultar detalhes do artista. As respostas das fontes permanecem separadas. **Ainda não há combinação de JSONs, transformação, enriquecimento ou persistência.**
 
 ### Transform (transformação)
 
@@ -94,9 +96,9 @@ Essa separação representa uma forma simples de **Data Lake**: o original não 
 
 - **Spotify Web API:** perfil e hábitos musicais autorizados pelo usuário. A autenticação será feita futuramente por OAuth; segredos e tokens nunca serão versionados.
 - **TheAudioDB:** primeira fonte integrada; permite pesquisar um artista e consultar seus álbuns, preservando as respostas JSON originais.
-- **MusicBrainz:** identificadores, datas, país, integrantes, relacionamentos e lançamentos estruturados.
+- **MusicBrainz:** segunda fonte integrada; pesquisa artistas e consulta detalhes, aliases, gêneros, tags e relações entre artistas por MBID, mantendo o JSON RAW.
 
-Spotify e MusicBrainz continuam apenas planejados e não possuem clientes implementados.
+Spotify continua apenas planejado e não possui cliente implementado.
 
 ## Arquitetura AWS planejada
 
@@ -167,7 +169,7 @@ soundscope/
 └── tests/                # testes automatizados espelhando o código de src
 ```
 
-Os arquivos `__init__.py` identificam os diretórios Python como pacotes. Somente `src/services/theaudiodb/` contém uma integração nesta fase.
+Os arquivos `__init__.py` identificam os diretórios Python como pacotes. Os clientes em `theaudiodb/` e `musicbrainz/` são independentes e não compartilham nem combinam seus documentos.
 
 ## Configuração local
 
@@ -186,7 +188,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Preencha `THEAUDIODB_API_KEY` no `.env` e exporte a variável no terminal. O projeto usa somente `requests` como dependência de terceiros nesta etapa. Para pesquisar e visualizar o JSON RAW:
+Preencha `THEAUDIODB_API_KEY` no `.env` e exporte a variável no terminal. O projeto usa somente `requests` como dependência de terceiros nesta etapa. Para pesquisar no TheAudioDB e visualizar o JSON RAW:
 
 ```bash
 export THEAUDIODB_API_KEY="sua_chave_aqui"
@@ -215,6 +217,26 @@ python -m src.services.theaudiodb.search_albums 111279
 
 O comando imprime a resposta RAW da API, cuja chave `album` contém a lista de álbuns. Cada consulta permanece independente: `search_artist()` retorna o documento de artista e `search_albums()` retorna o documento de álbuns, sem criar ainda um modelo transformado.
 
+### MusicBrainz
+
+A pesquisa segue a [documentação oficial de busca](https://musicbrainz.org/doc/MusicBrainz_API/Search) e usa `GET https://musicbrainz.org/ws/2/artist/`, com `query` contendo o nome e `fmt=json`. Por exemplo:
+
+```bash
+python -m src.services.musicbrainz.search_artist Metallica
+```
+
+O documento RAW contém uma lista `artists`. Copie o campo `id` (o MBID) do resultado desejado e faça o [lookup oficial](https://musicbrainz.org/doc/MusicBrainz_API#Lookups) em `GET https://musicbrainz.org/ws/2/artist/{MBID}`:
+
+```bash
+python -m src.services.musicbrainz.artist_details 65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab
+```
+
+A consulta de detalhes envia `fmt=json` e `inc=aliases+genres+tags+artist-rels`. Assim, a própria API pode incluir aliases, classificações e relações com outros artistas — inclusive relações de integrantes quando cadastradas — sem o SoundScope interpretar ou completar esses dados.
+
+Todas as chamadas enviam `Accept: application/json` e um User-Agent identificável. O padrão é `SoundScope/1.0 (https://github.com/zampieri05/soundscope)`; ele pode ser substituído por `MUSICBRAINZ_USER_AGENT`, mantendo o formato `Aplicação/versão (URL ou e-mail de contato)` recomendado pelo MusicBrainz. Nenhuma credencial é necessária. O cliente também limita as chamadas iniciadas pelo mesmo processo a uma por segundo, sem retries automáticos, conforme as regras oficiais de [rate limiting e identificação](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
+
+Os dados continuam exatamente no formato retornado. O SoundScope não renomeia campos, não resolve automaticamente todos os integrantes e não combina o resultado com o TheAudioDB. A presença e a qualidade de país, período de atividade, gêneros, tags, aliases e relações dependem do cadastro colaborativo do MusicBrainz.
+
 O cliente trata entradas vazias, configuração ausente, timeout, erro HTTP, JSON inválido, estrutura inesperada e resultados não encontrados. Os testes usam mocks e, portanto, não dependem da disponibilidade da API:
 
 ```bash
@@ -228,6 +250,7 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | Variável | Uso |
 | --- | --- |
 | `THEAUDIODB_API_KEY` | autentica as consultas de artistas e álbuns no TheAudioDB |
+| `MUSICBRAINZ_USER_AGENT` | identifica aplicação, versão e contato nas consultas ao MusicBrainz |
 | `SPOTIFY_CLIENT_ID` | identificação pública do aplicativo Spotify |
 | `SPOTIFY_CLIENT_SECRET` | segredo do aplicativo Spotify |
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
@@ -235,7 +258,7 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | `S3_BUCKET_NAME` | bucket das camadas RAW e PROCESSED |
 | `DYNAMODB_TABLE_NAME` | tabela de consulta da aplicação |
 
-Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase, somente `THEAUDIODB_API_KEY` é lida pelo projeto.
+Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase, `THEAUDIODB_API_KEY` é obrigatória para o TheAudioDB; `MUSICBRAINZ_USER_AGENT` é opcional porque há um valor público seguro como padrão.
 
 ## Segurança
 
@@ -254,7 +277,8 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Backend e transformação | Python | estrutura preparada |
 | Formato de troca | JSON sobre HTTP | extrações RAW implementadas |
 | Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
-| Fontes futuras | Spotify e MusicBrainz | planejadas |
+| Fontes | MusicBrainz | pesquisa e detalhes RAW por MBID implementados |
+| Fonte futura | Spotify | planejada |
 | Data Lake | Amazon S3 | planejado |
 | Banco de consulta | Amazon DynamoDB | planejado |
 | Computação e API | Lambda e API Gateway | planejado |
