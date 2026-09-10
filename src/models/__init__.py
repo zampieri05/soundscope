@@ -27,3 +27,16 @@ class NormalizedAlbum:
     name: str
     release_year: str | None = None
     cover_url: str | None = None
+
+
+@dataclass(frozen=True)
+class EnrichedArtist:
+    """Visão consolidada de um artista, com rastreabilidade das fontes."""
+
+    name: str
+    country: str | None
+    genre: str | None
+    formed_year: str | None
+    biography: str | None
+    image_url: str | None
+    source_ids: dict[str, str]
