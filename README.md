@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 1 — fundação do repositório. Nesta etapa não existem integrações reais, endpoints, infraestrutura AWS nem interface pronta.
+> **Status:** Fase 2 — primeira extração real, limitada à pesquisa de artistas no TheAudioDB.
 
 ## Objetivo
 
@@ -49,6 +49,14 @@ Fontes externas -> Extração -> JSON original -> RAW
 
 A aplicação envia requisições HTTP às APIs e recebe documentos JSON. A resposta é preservada com o mínimo possível de alterações, juntamente com metadados úteis de rastreabilidade, antes de qualquer regra de negócio. Isso possibilita auditoria e reprocessamento.
 
+Nesta fase, o primeiro fluxo executável demonstra somente o **E = Extract** do ETL:
+
+```text
+TheAudioDB API -> HTTP GET -> JSON -> Python
+```
+
+O usuário informa o nome de um artista, o cliente Python faz a requisição e devolve o JSON original recebido. Ainda não há transformação, enriquecimento ou persistência.
+
 ### Transform (transformação)
 
 O código Python selecionará campos relevantes, tratará ausências, padronizará nomes e tipos, normalizará estruturas e removerá duplicidades. Por exemplo, `strArtist` no TheAudioDB e `name` no MusicBrainz poderão se tornar `artist_name` no modelo interno.
@@ -85,10 +93,10 @@ Essa separação representa uma forma simples de **Data Lake**: o original não 
 ## Fontes de dados planejadas
 
 - **Spotify Web API:** perfil e hábitos musicais autorizados pelo usuário. A autenticação será feita futuramente por OAuth; segredos e tokens nunca serão versionados.
-- **TheAudioDB:** imagens, banners, gênero, país, formação, biografia e discografia para enriquecimento.
+- **TheAudioDB:** primeira fonte integrada; nesta fase permite apenas pesquisar um artista e observar a resposta JSON original.
 - **MusicBrainz:** identificadores, datas, país, integrantes, relacionamentos e lançamentos estruturados.
 
-Nenhum cliente dessas APIs foi implementado nesta fase.
+Spotify e MusicBrainz continuam apenas planejados e não possuem clientes implementados.
 
 ## Arquitetura AWS planejada
 
@@ -153,13 +161,13 @@ soundscope/
 │   ├── services/         # clientes das fontes externas
 │   │   ├── musicbrainz/
 │   │   ├── spotify/
-│   │   └── theaudiodb/
+│   │   └── theaudiodb/   # cliente HTTP e runner manual
 │   ├── storage/          # acesso futuro a S3 e DynamoDB
 │   └── utils/            # utilitários pequenos e compartilhados
 └── tests/                # testes automatizados espelhando o código de src
 ```
 
-Os arquivos `__init__.py` identificam os diretórios Python como pacotes. As pastas ainda não contêm implementações para manter esta entrega restrita à fundação.
+Os arquivos `__init__.py` identificam os diretórios Python como pacotes. Somente `src/services/theaudiodb/` contém uma integração nesta fase.
 
 ## Configuração local
 
@@ -178,14 +186,40 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-O `requirements.txt` está vazio de bibliotecas de terceiros nesta fase: ainda não há código de integração que justifique uma dependência. Quando a primeira extração for criada, somente o cliente HTTP necessário será adicionado.
+Preencha `THEAUDIODB_API_KEY` no `.env` e exporte a variável no terminal. O projeto usa somente `requests` como dependência de terceiros nesta etapa. Para pesquisar e visualizar o JSON RAW:
+
+```bash
+export THEAUDIODB_API_KEY="sua_chave_aqui"
+python -m src.services.theaudiodb.search_artist Metallica
+```
+
+Exemplo conceitual (os campos e valores reais são definidos pela API):
+
+```json
+{
+  "artists": [
+    {
+      "idArtist": "...",
+      "strArtist": "Metallica",
+      "strGenre": "Metal"
+    }
+  ]
+}
+```
+
+O cliente trata nome vazio, configuração ausente, timeout, erro HTTP, JSON inválido, estrutura inesperada e artista não encontrado. Os testes usam mocks e, portanto, não dependem da disponibilidade da API:
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## Variáveis de ambiente
 
 O arquivo `.env.example` documenta apenas os nomes esperados:
 
-| Variável | Uso futuro |
+| Variável | Uso |
 | --- | --- |
+| `THEAUDIODB_API_KEY` | autentica as pesquisas de artista no TheAudioDB |
 | `SPOTIFY_CLIENT_ID` | identificação pública do aplicativo Spotify |
 | `SPOTIFY_CLIENT_SECRET` | segredo do aplicativo Spotify |
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
@@ -193,7 +227,7 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | `S3_BUCKET_NAME` | bucket das camadas RAW e PROCESSED |
 | `DYNAMODB_TABLE_NAME` | tabela de consulta da aplicação |
 
-Copie o exemplo para `.env` e preencha-o apenas em sua máquina. O projeto ainda não lê essas variáveis.
+Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase, somente `THEAUDIODB_API_KEY` é lida pelo projeto.
 
 ## Segurança
 
@@ -210,8 +244,9 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Categoria | Tecnologia | Situação |
 | --- | --- | --- |
 | Backend e transformação | Python | estrutura preparada |
-| Formato de troca | JSON sobre HTTP | planejado |
-| Fontes | Spotify, TheAudioDB, MusicBrainz | planejado |
+| Formato de troca | JSON sobre HTTP | primeira extração implementada |
+| Fontes | TheAudioDB | pesquisa de artista implementada |
+| Fontes futuras | Spotify e MusicBrainz | planejadas |
 | Data Lake | Amazon S3 | planejado |
 | Banco de consulta | Amazon DynamoDB | planejado |
 | Computação e API | Lambda e API Gateway | planejado |
@@ -221,7 +256,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 ## Roadmap
 
 - [x] **Fase 1:** estrutura inicial do projeto
-- [ ] **Fase 2:** primeira extração real de API
+- [x] **Fase 2:** primeira extração real de API (TheAudioDB)
 - [ ] **Fase 3:** integração TheAudioDB
 - [ ] **Fase 4:** integração MusicBrainz
 - [ ] **Fase 5:** transformação e normalização
@@ -240,4 +275,4 @@ Cada fase deve produzir uma mudança pequena, testável e explicável. A priorid
 
 ## Estado atual e próximos limites
 
-A fundação documental e a organização dos pacotes estão prontas. Não há recursos criados na AWS, chamadas a APIs, modelo DynamoDB, autenticação Spotify nem frontend funcional. O próximo passo previsto é implementar **uma primeira extração real e pequena**, acompanhado de testes, somente após uma nova etapa de desenvolvimento.
+A fundação e a primeira extração do TheAudioDB estão prontas. Não há recursos AWS, persistência, transformação, integração Spotify/MusicBrainz nem frontend funcional. Qualquer nova fase será iniciada somente em uma etapa futura.
