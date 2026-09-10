@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 5 — transformação e normalização independente por fonte.
+> **Status:** Fase 6 — enriquecimento determinístico entre fontes.
 
 ## Objetivo
 
@@ -49,14 +49,15 @@ Fontes externas -> Extração -> JSON original -> RAW
 
 A aplicação envia requisições HTTP às APIs e recebe documentos JSON. A resposta é preservada com o mínimo possível de alterações, juntamente com metadados úteis de rastreabilidade, antes de qualquer regra de negócio. Isso possibilita auditoria e reprocessamento.
 
-O fluxo executável agora cobre **Extract** e **Transform**:
+O fluxo executável agora cobre **Extract**, **Transform** e **Enrichment**:
 
 ```text
-TheAudioDB  ──► Extract ──► RAW ──► Transform ──► NORMALIZED TheAudioDB
-MusicBrainz ──► Extract ──► RAW ──► Transform ──► NORMALIZED MusicBrainz
+TheAudioDB  ──► Extract ──► RAW ──► Transform ──► NORMALIZED ──┐
+                                                               ├──► Enrichment ──► ENRICHED
+MusicBrainz ──► Extract ──► RAW ──► Transform ──► NORMALIZED ──┘
 ```
 
-O usuário informa o nome de um artista e cada cliente Python devolve o JSON original recebido. No TheAudioDB, o `idArtist` permite consultar os álbuns; no MusicBrainz, o MBID permite consultar detalhes do artista. Os transformers recebem esses documentos sem modificá-los e criam novos modelos normalizados. As respostas e os modelos das fontes permanecem separados: **ainda não há combinação, matching, deduplicação ou enriquecimento.**
+O usuário informa o nome de um artista e cada cliente Python devolve o JSON original recebido. No TheAudioDB, o `idArtist` permite consultar os álbuns; no MusicBrainz, o MBID permite consultar detalhes do artista. Os transformers recebem esses documentos sem modificá-los e criam novos modelos normalizados. A combinação acontece somente depois e também cria um novo objeto; RAW e NORMALIZED permanecem intactos.
 
 ### Transform (transformação)
 
@@ -83,20 +84,41 @@ musicbrainz_normalized = transform_musicbrainz_artist(musicbrainz_details_raw)
 
 ### Data Enrichment (enriquecimento)
 
-Enriquecer significa combinar atributos complementares. Uma fonte pode fornecer métricas do Spotify, outra uma biografia e outra identificadores e relacionamentos. O resultado será um registro de artista mais completo, sem esconder a procedência de cada dado.
+Enriquecer significa combinar atributos complementares das duas fontes em um `EnrichedArtist`. Isso é útil porque o TheAudioDB costuma oferecer biografia e imagem, enquanto o MusicBrainz pode complementar país e período de atividade. A camada recebe somente `NormalizedArtist`: ela não faz HTTP nem altera os objetos recebidos.
+
+```text
+TheAudioDB NORMALIZED ──┐
+                        ├──► ENRICHMENT ──► EnrichedArtist
+MusicBrainz NORMALIZED ─┘
+```
+
+Antes da combinação, os nomes são comparados ignorando maiúsculas/minúsculas e espaços extras. Nomes diferentes ou fontes nos argumentos errados produzem `ArtistEnrichmentError`; não há fuzzy matching ou Entity Resolution. As prioridades são intencionalmente simples:
+
+- nome: TheAudioDB, depois da validação de identidade;
+- país e ano de formação: MusicBrainz;
+- gênero, biografia e imagem: TheAudioDB, pois esses atributos são mais descritivos nessa integração.
+
+Para cada atributo, se a fonte preferencial não tiver valor, a outra é usada; se ambas não tiverem, o resultado é `None`. Nenhuma informação é inventada. `source_ids` preserva os IDs do TheAudioDB e do MusicBrainz, oferecendo rastreabilidade sem criar um sistema complexo de lineage.
+
+```python
+from src.pipeline.enrichment import enrich_artist
+
+enriched = enrich_artist(theaudiodb_normalized, musicbrainz_normalized)
+```
 
 ### Load (carga)
 
 Após a transformação, os dados serão gravados na camada processada do S3 e os campos necessários à consulta rápida serão persistidos no DynamoDB. Essa etapa ainda será implementada; o modelo inicial será mantido pequeno e poderá evoluir com o uso real.
 
-## RAW x NORMALIZED
+## RAW x NORMALIZED x ENRICHED
 
 | Camada | Conteúdo | Finalidade |
 | --- | --- | --- |
 | **RAW** | JSON praticamente igual ao recebido de cada API | Auditoria, histórico, comparação e reprocessamento |
-| **NORMALIZED** | Novo objeto com o pequeno esquema comum do SoundScope | Entrada consistente para etapas futuras |
+| **NORMALIZED** | Novo objeto de uma única fonte no esquema comum | Entrada consistente e independente para o enrichment |
+| **ENRICHED** | Novo objeto que combina os dois registros normalizados | Visão complementar do artista com os IDs das fontes |
 
-NORMALIZED não significa enriquecido: nesta fase cada modelo continua associado a uma única fonte. O RAW permanece intacto para auditoria e reprocessamento. A camada PROCESSED, a persistência e a combinação entre fontes pertencem a fases posteriores.
+NORMALIZED não significa enriquecido: cada modelo normalizado continua associado a uma única fonte. ENRICHED é outro objeto, criado sem sobrescrever RAW ou NORMALIZED. A camada PROCESSED e a persistência pertencem a fases posteriores.
 
 Estrutura conceitual futura no bucket:
 
@@ -179,7 +201,7 @@ soundscope/
 ├── src/                  # pacote principal do backend Python
 │   ├── handlers/         # entradas futuras das funções Lambda/API
 │   ├── models/           # modelos de dados normalizados
-│   ├── pipeline/         # transformers independentes por fonte
+│   ├── pipeline/         # transformers por fonte e enrichment puro
 │   ├── services/         # clientes das fontes externas
 │   │   ├── musicbrainz/
 │   │   ├── spotify/
@@ -294,7 +316,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 
 | Categoria | Tecnologia | Situação |
 | --- | --- | --- |
-| Backend e transformação | Python | modelos e transformers implementados |
+| Backend e transformação | Python | modelos, transformers e enrichment implementados |
 | Formato de troca | JSON sobre HTTP | extrações RAW implementadas |
 | Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
 | Fontes | MusicBrainz | pesquisa e detalhes RAW por MBID implementados |
@@ -312,7 +334,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 3:** integração TheAudioDB (artista e discografia RAW)
 - [x] **Fase 4:** integração MusicBrainz
 - [x] **Fase 5:** transformação e normalização
-- [ ] **Fase 6:** Data Enrichment
+- [x] **Fase 6:** Data Enrichment
 - [ ] **Fase 7:** persistência RAW no Amazon S3
 - [ ] **Fase 8:** persistência processada
 - [ ] **Fase 9:** DynamoDB
@@ -327,4 +349,4 @@ Cada fase deve produzir uma mudança pequena, testável e explicável. A priorid
 
 ## Estado atual e próximos limites
 
-As extrações RAW do TheAudioDB e MusicBrainz e suas transformações independentes estão prontas. Não há recursos AWS, persistência, integração Spotify, combinação entre fontes, Data Enrichment nem frontend funcional. Qualquer nova fase será iniciada somente em uma etapa futura.
+As extrações RAW do TheAudioDB e MusicBrainz, suas transformações independentes e o enriquecimento em memória estão prontos. Não há recursos AWS, persistência, integração Spotify nem frontend funcional. Qualquer nova fase será iniciada somente em uma etapa futura.
