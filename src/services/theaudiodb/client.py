@@ -1,4 +1,4 @@
-"""Cliente HTTP simples para extrair dados de artistas do TheAudioDB."""
+"""Cliente HTTP simples para extrair artistas e álbuns do TheAudioDB."""
 
 import os
 from typing import Any
@@ -16,6 +16,10 @@ class TheAudioDBError(Exception):
 
 class ArtistNotFoundError(TheAudioDBError):
     """O TheAudioDB não encontrou o artista solicitado."""
+
+
+class AlbumsNotFoundError(TheAudioDBError):
+    """O TheAudioDB não encontrou álbuns para o artista solicitado."""
 
 
 def search_artist(artist_name: str) -> dict[str, Any]:
@@ -62,5 +66,56 @@ def search_artist(artist_name: str) -> dict[str, Any]:
 
     if not data["artists"]:
         raise ArtistNotFoundError(f'Artista "{artist_name.strip()}" não encontrado.')
+
+    return data
+
+
+def search_albums(artist_id: str) -> dict[str, Any]:
+    """Consulta a discografia de um artista e devolve o JSON original.
+
+    O identificador pode ser obtido no campo ``idArtist`` retornado por
+    :func:`search_artist`. Assim como na pesquisa de artista, esta função não
+    transforma a resposta para o modelo interno do SoundScope.
+
+    Raises:
+        ValueError: Se o identificador do artista estiver vazio.
+        TheAudioDBError: Se faltar configuração ou a comunicação/resposta falhar.
+        AlbumsNotFoundError: Se a API não retornar nenhum álbum.
+    """
+    if not isinstance(artist_id, str) or not artist_id.strip():
+        raise ValueError("O identificador do artista não pode estar vazio.")
+
+    api_key = os.getenv("THEAUDIODB_API_KEY")
+    if not api_key:
+        raise TheAudioDBError(
+            "A variável de ambiente THEAUDIODB_API_KEY não está configurada."
+        )
+
+    url = f"{BASE_URL}/{api_key}/album.php"
+
+    try:
+        response = requests.get(
+            url,
+            params={"i": artist_id.strip()},
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except requests.Timeout as error:
+        raise TheAudioDBError("A requisição ao TheAudioDB excedeu o tempo limite.") from error
+    except requests.RequestException as error:
+        raise TheAudioDBError(f"Erro HTTP ao consultar o TheAudioDB: {error}") from error
+
+    try:
+        data = response.json()
+    except (requests.exceptions.JSONDecodeError, ValueError) as error:
+        raise TheAudioDBError("O TheAudioDB retornou uma resposta JSON inválida.") from error
+
+    if not isinstance(data, dict) or "album" not in data:
+        raise TheAudioDBError("O TheAudioDB retornou uma estrutura JSON inesperada.")
+
+    if not data["album"]:
+        raise AlbumsNotFoundError(
+            f'Nenhum álbum encontrado para o artista "{artist_id.strip()}".'
+        )
 
     return data
