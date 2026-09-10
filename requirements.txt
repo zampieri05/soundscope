@@ -1,0 +1,2 @@
+# A fundação atual utiliza apenas a biblioteca padrão do Python.
+# Dependências serão adicionadas quando houver uma implementação que as utilize.

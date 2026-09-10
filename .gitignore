@@ -1,0 +1,31 @@
+# Variáveis locais e segredos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+
+# Frontend (futuro)
+node_modules/
+.next/
+coverage/
+
+# IDE, sistema operacional e arquivos temporários
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
