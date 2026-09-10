@@ -1,1 +1,1 @@
-"""Cliente MusicBrainz a ser implementado em uma etapa futura."""
+"""Integração de extração RAW com o MusicBrainz."""
