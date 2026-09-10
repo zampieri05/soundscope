@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 2 — primeira extração real, limitada à pesquisa de artistas no TheAudioDB.
+> **Status:** Fase 3 — extração de artistas e respectivas discografias no TheAudioDB.
 
 ## Objetivo
 
@@ -49,13 +49,13 @@ Fontes externas -> Extração -> JSON original -> RAW
 
 A aplicação envia requisições HTTP às APIs e recebe documentos JSON. A resposta é preservada com o mínimo possível de alterações, juntamente com metadados úteis de rastreabilidade, antes de qualquer regra de negócio. Isso possibilita auditoria e reprocessamento.
 
-Nesta fase, o primeiro fluxo executável demonstra somente o **E = Extract** do ETL:
+Nesta fase, o fluxo executável demonstra somente o **E = Extract** do ETL:
 
 ```text
 TheAudioDB API -> HTTP GET -> JSON -> Python
 ```
 
-O usuário informa o nome de um artista, o cliente Python faz a requisição e devolve o JSON original recebido. Ainda não há transformação, enriquecimento ou persistência.
+O usuário informa o nome de um artista, o cliente Python faz a requisição e devolve o JSON original recebido. O `idArtist` dessa resposta pode então ser usado para consultar os álbuns do artista, também em formato RAW. Ainda não há transformação, enriquecimento ou persistência.
 
 ### Transform (transformação)
 
@@ -93,7 +93,7 @@ Essa separação representa uma forma simples de **Data Lake**: o original não 
 ## Fontes de dados planejadas
 
 - **Spotify Web API:** perfil e hábitos musicais autorizados pelo usuário. A autenticação será feita futuramente por OAuth; segredos e tokens nunca serão versionados.
-- **TheAudioDB:** primeira fonte integrada; nesta fase permite apenas pesquisar um artista e observar a resposta JSON original.
+- **TheAudioDB:** primeira fonte integrada; permite pesquisar um artista e consultar seus álbuns, preservando as respostas JSON originais.
 - **MusicBrainz:** identificadores, datas, país, integrantes, relacionamentos e lançamentos estruturados.
 
 Spotify e MusicBrainz continuam apenas planejados e não possuem clientes implementados.
@@ -207,7 +207,15 @@ Exemplo conceitual (os campos e valores reais são definidos pela API):
 }
 ```
 
-O cliente trata nome vazio, configuração ausente, timeout, erro HTTP, JSON inválido, estrutura inesperada e artista não encontrado. Os testes usam mocks e, portanto, não dependem da disponibilidade da API:
+Copie o valor de `idArtist` retornado e use-o para extrair a discografia:
+
+```bash
+python -m src.services.theaudiodb.search_albums 111279
+```
+
+O comando imprime a resposta RAW da API, cuja chave `album` contém a lista de álbuns. Cada consulta permanece independente: `search_artist()` retorna o documento de artista e `search_albums()` retorna o documento de álbuns, sem criar ainda um modelo transformado.
+
+O cliente trata entradas vazias, configuração ausente, timeout, erro HTTP, JSON inválido, estrutura inesperada e resultados não encontrados. Os testes usam mocks e, portanto, não dependem da disponibilidade da API:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -219,7 +227,7 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 
 | Variável | Uso |
 | --- | --- |
-| `THEAUDIODB_API_KEY` | autentica as pesquisas de artista no TheAudioDB |
+| `THEAUDIODB_API_KEY` | autentica as consultas de artistas e álbuns no TheAudioDB |
 | `SPOTIFY_CLIENT_ID` | identificação pública do aplicativo Spotify |
 | `SPOTIFY_CLIENT_SECRET` | segredo do aplicativo Spotify |
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
@@ -244,8 +252,8 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Categoria | Tecnologia | Situação |
 | --- | --- | --- |
 | Backend e transformação | Python | estrutura preparada |
-| Formato de troca | JSON sobre HTTP | primeira extração implementada |
-| Fontes | TheAudioDB | pesquisa de artista implementada |
+| Formato de troca | JSON sobre HTTP | extrações RAW implementadas |
+| Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
 | Fontes futuras | Spotify e MusicBrainz | planejadas |
 | Data Lake | Amazon S3 | planejado |
 | Banco de consulta | Amazon DynamoDB | planejado |
@@ -257,7 +265,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 
 - [x] **Fase 1:** estrutura inicial do projeto
 - [x] **Fase 2:** primeira extração real de API (TheAudioDB)
-- [ ] **Fase 3:** integração TheAudioDB
+- [x] **Fase 3:** integração TheAudioDB (artista e discografia RAW)
 - [ ] **Fase 4:** integração MusicBrainz
 - [ ] **Fase 5:** transformação e normalização
 - [ ] **Fase 6:** Data Enrichment
