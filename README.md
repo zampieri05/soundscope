@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase atual: 11 — Persistência do artista enriquecido no DynamoDB.
+> **Status:** Fase atual: 12 — AWS Lambda para execução do pipeline de artistas.
 
 ## Objetivo
 
@@ -268,6 +268,64 @@ from src.storage import save_enriched_artist
 save_enriched_artist(enriched)
 ```
 
+### Fase 12 — AWS Lambda
+
+A função Lambda transforma o pipeline Python existente em um backend serverless
+executável sob demanda. O handler recebe o parâmetro de rota `artist_name`,
+executa `process_enriched_artist()` e devolve uma resposta compatível com Lambda
+Proxy Integration. A futura rota será `GET /artist/{artist_name}`; o API Gateway
+será criado somente na próxima fase.
+
+```text
+Internet
+  → API Gateway (próxima fase)
+  → AWS Lambda
+  → SoundScope pipeline
+  → APIs externas
+  → Amazon S3
+  → Amazon DynamoDB
+```
+
+Configure o campo **Handler** da função exatamente como:
+
+```text
+src.handlers.artist.lambda_handler
+```
+
+As variáveis de ambiente da Lambda deverão ser configuradas sem armazenar
+segredos no repositório:
+
+```text
+SOUNDSCOPE_S3_BUCKET=soundscope-data-zampieri
+SOUNDSCOPE_DYNAMODB_TABLE=soundscope-artists
+THEAUDIODB_API_KEY=<configurar externamente; não versionar o segredo>
+MUSICBRAINZ_USER_AGENT=<aplicação/versão e contato apropriados>
+```
+
+Durante o desenvolvimento, todas as respostas incluem
+`Access-Control-Allow-Origin: *`. Essa origem deve ser restringida ao domínio do
+frontend antes de uma implantação de produção.
+
+Para criar o pacote implantável (sem executar deploy), rode:
+
+```bash
+./scripts/build_lambda.sh
+```
+
+O artefato será gerado em `dist/soundscope-lambda.zip`, contendo `src/` e as
+dependências declaradas. O diretório `dist/` é ignorado pelo Git.
+
+A futura execution role deve seguir o princípio do menor privilégio e permitir
+somente:
+
+- escrita de logs no CloudWatch Logs (criação do log group/stream e eventos);
+- `s3:PutObject` no bucket `soundscope-data-zampieri`, limitado aos prefixos
+  `raw/` e `processed/` utilizados pelo pipeline;
+- `dynamodb:PutItem` somente na tabela `soundscope-artists`.
+
+Esta fase não cria role, usuário, access key, recurso AWS ou infraestrutura como
+código. As credenciais são obtidas pela role de execução padrão da Lambda.
+
 ## RAW x NORMALIZED x ENRICHED
 
 | Camada | Conteúdo | Finalidade |
@@ -358,7 +416,7 @@ soundscope/
 ├── docs/                 # documentação técnica futura
 ├── frontend/             # base da futura aplicação web
 ├── src/                  # pacote principal do backend Python
-│   ├── handlers/         # entradas futuras das funções Lambda/API
+│   ├── handlers/         # handler da função Lambda/API
 │   ├── models/           # modelos de dados normalizados
 │   ├── pipeline/         # transformers, enrichment e orquestração
 │   ├── services/         # clientes das fontes externas
@@ -490,7 +548,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Fonte futura | Spotify | planejada |
 | Data Lake | Amazon S3 | persistência RAW, processed e enriched implementada |
 | Banco de consulta | Amazon DynamoDB | persistência de artistas enriquecidos implementada |
-| Computação e API | Lambda e API Gateway | planejado |
+| Computação e API | Lambda implementada; API Gateway | próxima fase |
 | Observabilidade | CloudWatch | planejado |
 | Frontend | a definir quando a interface começar | estrutura reservada |
 
@@ -507,7 +565,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 9:** transformação e persistência processada
 - [x] **Fase 10:** Multi-source Data Enrichment
 - [x] **Fase 11:** persistência do artista enriquecido no DynamoDB
-- [ ] **Fase 12:** AWS Lambda + API Gateway
+- [x] **Fase 12:** AWS Lambda para o pipeline de artistas (API Gateway na próxima fase)
 - [ ] **Fase 13:** Spotify OAuth
 - [ ] **Fase 14:** dados pessoais Spotify
 - [ ] **Fase 15:** frontend
@@ -523,5 +581,6 @@ documentos em um bucket S3 configurado externamente, suas transformações
 independentes e o enriquecimento estão prontos. O fluxo TheAudioDB também
 persiste seu `NormalizedArtist` na camada processed, e o fluxo multi-source
 persiste `EnrichedArtist` no S3 antes de atualizar a tabela DynamoDB externa.
-Nenhum recurso AWS é criado pelo projeto. Lambda, API Gateway, integração
-Spotify e frontend funcional continuam para fases futuras.
+Nenhum recurso AWS é criado pelo projeto. O handler e o empacotamento da Lambda
+estão prontos, mas deploy, API Gateway, integração Spotify e frontend funcional
+continuam para fases futuras.
