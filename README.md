@@ -276,6 +276,41 @@ executa `process_enriched_artist()` e devolve uma resposta compatível com Lambd
 Proxy Integration. A futura rota será `GET /artist/{artist_name}`; o API Gateway
 será criado somente na próxima fase.
 
+Em uma resposta HTTP 200, `artist` contém todos os campos reais do
+`EnrichedArtist` produzido pelo pipeline (incluindo valores opcionais nulos e
+`source_ids`), enquanto `metadata` preserva os identificadores, a origem e as
+chaves de rastreabilidade no S3. O frontend recebe os dados diretamente na
+resposta e não precisa acessar o bucket:
+
+```json
+{
+  "artist": {
+    "name": "Metallica",
+    "country": "US",
+    "genre": "Metal",
+    "formed_year": "1981",
+    "biography": null,
+    "image_url": "https://example.com/metallica.jpg",
+    "source_ids": {
+      "theaudiodb": "111279",
+      "musicbrainz": "mbid-1"
+    }
+  },
+  "metadata": {
+    "artist_name": "Metallica",
+    "theaudiodb_artist_id": "111279",
+    "musicbrainz_mbid": "mbid-1",
+    "source": "theaudiodb+musicbrainz",
+    "theaudiodb_raw_s3_key": "raw/theaudiodb/artists/...",
+    "musicbrainz_raw_s3_key": "raw/musicbrainz/artists/...",
+    "processed_s3_key": "processed/enriched/artists/..."
+  }
+}
+```
+
+Os erros continuam usando os status 400, 404 e 500 e o cabeçalho CORS é
+mantido em todas as respostas.
+
 ```text
 Internet
   → API Gateway (próxima fase)
