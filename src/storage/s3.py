@@ -11,7 +11,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 _ENTITY_TYPES_BY_SOURCE = {
     "theaudiodb": frozenset({"artists", "albums"}),
-    "musicbrainz": frozenset({"artists"}),
+    "musicbrainz": frozenset({"artists", "release-groups"}),
 }
 
 

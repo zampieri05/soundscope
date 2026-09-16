@@ -61,6 +61,22 @@ class SaveRawJsonTests(unittest.TestCase):
         stored = json.loads(self.client.put_object.call_args.kwargs["Body"])
         self.assertEqual(stored, raw)
 
+    def test_stores_musicbrainz_release_groups_raw(self):
+        raw = {
+            "release-groups": [
+                {"id": "release-group-1", "title": "Hybrid Theory"}
+            ]
+        }
+
+        key = self._save("musicbrainz", raw, "release-groups", "mbid-1")
+
+        self.assertEqual(
+            key,
+            "raw/musicbrainz/release-groups/mbid-1/20260910T150000000000Z.json",
+        )
+        stored = json.loads(self.client.put_object.call_args.kwargs["Body"])
+        self.assertEqual(stored, raw)
+
     def test_escapes_entity_id_in_key(self):
         key = self._save("theaudiodb", {"album": []}, "albums", "artist/42")
         self.assertIn("/artist%2F42/", key)
@@ -72,7 +88,8 @@ class SaveRawJsonTests(unittest.TestCase):
 
     def test_rejects_invalid_entity_type(self):
         with self.assertRaisesRegex(S3StorageError, "entity_type inválido"):
-            self._save("musicbrainz", {}, "albums", "123")
+            self._save("musicbrainz", {}, "tracks", "123")
+        self.client.put_object.assert_not_called()
 
     def test_rejects_empty_entity_id(self):
         with self.assertRaisesRegex(S3StorageError, "entity_id"):
