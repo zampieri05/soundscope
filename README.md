@@ -214,6 +214,10 @@ esquema interno evoluir. A normalização vem antes do enrichment para que as
 regras de combinação operem sobre um formato comum, sem conhecer os diferentes
 nomes e formatos de campos das APIs.
 
+Para tolerar indisponibilidades breves durante esse fluxo, o cliente
+MusicBrainz aplica retry limitado somente a respostas HTTP transitórias, sem
+transferir essa responsabilidade para a orquestração da Fase 10.
+
 O enrichment cria um terceiro objeto e nunca modifica os RAW originais nem os
 dois `NormalizedArtist`. Um registro **normalized** representa uma única fonte
 no esquema comum; um registro **enriched** combina os valores complementares e
@@ -400,7 +404,7 @@ python -m src.services.musicbrainz.artist_details 65f4f0c5-ef9e-490c-aee3-909e7a
 
 A consulta de detalhes envia `fmt=json` e `inc=aliases+genres+tags+artist-rels`. Assim, a própria API pode incluir aliases, classificações e relações com outros artistas — inclusive relações de integrantes quando cadastradas — sem o SoundScope interpretar ou completar esses dados.
 
-Todas as chamadas enviam `Accept: application/json` e um User-Agent identificável. O padrão é `SoundScope/1.0 (https://github.com/zampieri05/soundscope)`; ele pode ser substituído por `MUSICBRAINZ_USER_AGENT`, mantendo o formato `Aplicação/versão (URL ou e-mail de contato)` recomendado pelo MusicBrainz. Nenhuma credencial é necessária. O cliente também limita as chamadas iniciadas pelo mesmo processo a uma por segundo, sem retries automáticos, conforme as regras oficiais de [rate limiting e identificação](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
+Todas as chamadas enviam `Accept: application/json` e um User-Agent identificável. O padrão é `SoundScope/1.0 (https://github.com/zampieri05/soundscope)`; ele pode ser substituído por `MUSICBRAINZ_USER_AGENT`, mantendo o formato `Aplicação/versão (URL ou e-mail de contato)` recomendado pelo MusicBrainz. Nenhuma credencial é necessária. O cliente também limita as chamadas iniciadas pelo mesmo processo a uma por segundo, conforme as regras oficiais de [rate limiting e identificação](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting). Respostas HTTP transitórias (`429`, `500`, `502`, `503` e `504`) têm no máximo três tentativas no total, com esperas de 1 e 2 segundos; um `Retry-After` válido substitui o backoff, limitado com segurança a 60 segundos. Os demais erros não são retentados.
 
 O cliente continua devolvendo exatamente o formato recebido. Separadamente, `transform_musicbrainz_artist()` aceita o RAW de detalhes e cria um `NormalizedArtist`; ele não resolve integrantes nem combina o resultado com o TheAudioDB. A presença e a qualidade de país, período de atividade e gênero dependem do cadastro colaborativo do MusicBrainz.
 

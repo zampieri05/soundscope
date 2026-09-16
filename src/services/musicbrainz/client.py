@@ -3,6 +3,9 @@
 import os
 import threading
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from math import isfinite
 from typing import Any
 
 import requests
@@ -11,6 +14,9 @@ import requests
 BASE_URL = "https://musicbrainz.org/ws/2"
 DEFAULT_TIMEOUT_SECONDS = 10
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
+MAX_REQUEST_ATTEMPTS = 3
+MAX_RETRY_DELAY_SECONDS = 60.0
+TRANSIENT_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_USER_AGENT = "SoundScope/1.0 (https://github.com/zampieri05/soundscope)"
 
 _rate_limit_lock = threading.Lock()
@@ -36,29 +42,68 @@ def _wait_for_rate_limit() -> None:
         _last_request_started_at = time.monotonic()
 
 
+def _retry_delay(response: requests.Response, retry_number: int) -> float:
+    """Calcula a espera indicada pelo servidor ou o backoff exponencial."""
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            delay = float(retry_after)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, OverflowError):
+                delay = -1
+        if isfinite(delay) and delay >= 0:
+            return min(delay, MAX_RETRY_DELAY_SECONDS)
+
+    return float(2 ** (retry_number - 1))
+
+
 def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
     """Executa uma requisição identificada e devolve seu documento JSON."""
     user_agent = os.getenv("MUSICBRAINZ_USER_AGENT", DEFAULT_USER_AGENT).strip()
     if not user_agent:
         raise MusicBrainzError("O User-Agent do MusicBrainz não pode estar vazio.")
 
-    _wait_for_rate_limit()
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            headers={"User-Agent": user_agent, "Accept": "application/json"},
-            timeout=DEFAULT_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-    except requests.Timeout as error:
-        raise MusicBrainzError(
-            "A requisição ao MusicBrainz excedeu o tempo limite."
-        ) from error
-    except requests.RequestException as error:
-        raise MusicBrainzError(
-            f"Erro HTTP ao consultar o MusicBrainz: {error}"
-        ) from error
+    response: requests.Response | None = None
+    for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
+        _wait_for_rate_limit()
+        response = None
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                headers={"User-Agent": user_agent, "Accept": "application/json"},
+                timeout=DEFAULT_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            break
+        except requests.Timeout as error:
+            raise MusicBrainzError(
+                "A requisição ao MusicBrainz excedeu o tempo limite."
+            ) from error
+        except requests.HTTPError as error:
+            error_response = error.response if error.response is not None else response
+            status_code = getattr(error_response, "status_code", None)
+            if (
+                status_code in TRANSIENT_HTTP_STATUS_CODES
+                and attempt < MAX_REQUEST_ATTEMPTS
+            ):
+                time.sleep(_retry_delay(error_response, attempt))
+                continue
+            raise MusicBrainzError(
+                f"Erro HTTP ao consultar o MusicBrainz: {error}"
+            ) from error
+        except requests.RequestException as error:
+            raise MusicBrainzError(
+                f"Erro HTTP ao consultar o MusicBrainz: {error}"
+            ) from error
+
+    if response is None:  # pragma: no cover - o loop só termina após uma resposta válida
+        raise MusicBrainzError("O MusicBrainz não retornou uma resposta.")
 
     try:
         data = response.json()
