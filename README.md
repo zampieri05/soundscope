@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 7 — persistência de documentos RAW no Amazon S3.
+> **Status:** Fase 8 — orquestração da ingestão.
 
 ## Objetivo
 
@@ -142,6 +142,23 @@ key = save_raw_json("theaudiodb", raw_document, "artists", "123")
 
 A camada processada e os bancos de consulta continuam reservados para fases
 posteriores.
+
+### Fase 8 — Orquestração da ingestão
+
+A camada de ingestão conecta o cliente e o storage que já existem em um fluxo
+único:
+
+```text
+artist_name → TheAudioDB → RAW → S3
+```
+
+`ingest_theaudiodb_artist()` solicita ao cliente o JSON original, obtém o
+`idArtist` do primeiro artista utilizável e entrega exatamente o mesmo objeto a
+`save_raw_json()`. O resultado informa o nome pesquisado, o ID, a fonte e a
+chave criada no S3.
+
+Essa camada apenas coordena componentes existentes. Ela não transforma, não
+enriquece e não modifica o documento RAW antes da persistência.
 
 ## RAW x NORMALIZED x ENRICHED
 
