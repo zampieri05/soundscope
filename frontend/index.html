@@ -1,106 +1,103 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SoundScope — discover artists, albums, and the stories behind the music.">
-    <meta name="theme-color" content="#08090c">
-    <title>SoundScope — Discover the sound behind the name</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
-    <script src="js/app.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <header class="navbar" aria-label="Primary navigation">
-      <a class="brand" href="#top" aria-label="SoundScope home">
-        <span class="brand__signal" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span>SoundScope</span>
-      </a>
-      <nav class="nav-links" aria-label="Explore SoundScope">
-        <a href="#top">Discover</a>
-        <span aria-disabled="true">Genres</span><span aria-disabled="true">Artists</span><span aria-disabled="true">Albums</span>
-      </nav>
-      <div class="nav-actions">
-        <button id="nav-search" type="button">Search</button>
-        <span aria-disabled="true">Favorites</span>
-      </div>
-    </header>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="SoundScope — histórias, integrantes e discografias de artistas que marcaram a música.">
+  <meta name="theme-color" content="#090A0C">
+  <title>SoundScope — Descubra o som por trás do nome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <header class="topbar">
+    <a class="brand" href="#inicio" aria-label="SoundScope, início"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a>
+    <nav aria-label="Navegação principal"><a href="#inicio">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a></nav>
+    <button class="text-button" id="nav-search" type="button">Buscar <span aria-hidden="true">↗</span></button>
+  </header>
 
-    <main id="main-content">
-      <section class="home-hero" id="top" aria-labelledby="hero-title">
-        <div class="atmosphere" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="hero-copy">
-          <p class="eyebrow">A deeper way to discover music</p>
-          <h1 id="hero-title">Discover the sound<br><em>behind the name.</em></h1>
-          <p class="hero-subtitle">Explore artists, albums and the stories behind the music.</p>
-        </div>
+  <main id="conteudo">
+    <section class="home" id="inicio" aria-labelledby="hero-title">
+      <div class="ambient" aria-hidden="true"></div>
+      <div class="sound-orb" id="sound-orb" aria-hidden="true"><div class="orb-core"></div><i></i><i></i><i></i></div>
+      <div class="home-copy">
+        <p class="kicker"><span></span> Arquivo musical em movimento</p>
+        <h1 id="hero-title">Descubra o som<br>por trás do nome.</h1>
+        <p>Explore histórias, integrantes e discografias de artistas que marcaram a música.</p>
+      </div>
+      <div class="search-area">
+        <p class="search-prompt">Quem você quer ouvir?</p>
         <form class="search" id="search-form" role="search" novalidate>
-          <label class="sr-only" for="artist-input">Search for an artist or band</label>
-          <svg class="search__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
-          <input id="artist-input" name="artist" type="search" placeholder="Search for an artist or band..." autocomplete="off" maxlength="120" aria-describedby="form-message">
-          <kbd aria-hidden="true"><span class="desktop-shortcut">CTRL</span><span class="mobile-shortcut">⌘</span> + K</kbd>
-          <button id="search-button" type="submit" aria-label="Search">
-            <span class="button-label">Explore</span><span class="button-spinner" aria-hidden="true"></span>
-            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M4 10h12m-4-4 4 4-4 4"></path></svg>
-          </button>
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4 4"></path></svg>
+          <label class="sr-only" for="artist-input">Busque um artista ou banda</label>
+          <input id="artist-input" name="artist" type="search" placeholder="Busque um artista ou banda..." autocomplete="off" maxlength="120" aria-describedby="form-message">
+          <kbd aria-hidden="true">CTRL&nbsp;+&nbsp;K</kbd>
+          <button id="search-button" type="submit"><span>Buscar</span><b aria-hidden="true">→</b></button>
         </form>
         <p class="form-message" id="form-message" role="alert" aria-live="polite"></p>
-        <div class="hero-foot" aria-hidden="true"><span>Scroll to explore</span><i></i><span>Music, in context</span></div>
+      </div>
+      <div class="home-foot" aria-hidden="true"><span>Role para explorar</span><i></i><span>Histórias • Pessoas • Discos</span></div>
+    </section>
+
+    <section class="loading is-hidden" id="loading-state" aria-live="polite" aria-label="Buscando artista">
+      <div class="signal-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <p>Buscando artista</p><span>Sintonizando histórias, pessoas e lançamentos</span>
+    </section>
+
+    <section class="error-state is-hidden" id="error-state" role="alert" aria-live="assertive">
+      <p class="kicker"><span></span> Sinal não encontrado</p><h2>Não conseguimos encontrar esse artista.</h2><p id="error-message"></p>
+      <button class="outline-button" id="retry-search" type="button">Tentar outra busca <span>→</span></button>
+    </section>
+
+    <article class="artist is-hidden" id="result" aria-labelledby="artist-name" tabindex="-1">
+      <header class="artist-hero">
+        <div class="artist-photo"><img id="artist-image" alt="" src="assets/artist-placeholder.svg"><div></div></div>
+        <div class="artist-intro">
+          <p class="kicker"><span></span> Perfil do artista</p><h2 id="artist-name"></h2>
+          <p class="artist-meta" id="artist-meta"></p><p class="artist-formed" id="artist-formed"></p>
+        </div>
+        <span class="vertical-note" aria-hidden="true">SOUNDSCOPE / ARQUIVO</span>
+      </header>
+
+      <nav class="artist-nav" aria-label="Seções do artista">
+        <a href="#visao-geral" class="is-active">Visão geral</a><a href="#historia">A história</a><a href="#integrantes" id="members-nav">Integrantes</a><a href="#discografia" id="albums-nav">Discografia</a>
+        <button id="new-search" type="button">Nova busca <span>⌕</span></button>
+      </nav>
+
+      <section class="overview reveal" id="visao-geral" aria-labelledby="overview-title">
+        <div class="section-index"><span>01</span><i></i><p>Visão geral</p></div>
+        <div><h3 id="overview-title">Uma identidade<br>em frequências.</h3><dl class="facts" aria-label="Informações do artista">
+          <div id="genre-fact"><dt>Gênero</dt><dd id="artist-genre"></dd></div><div id="country-fact"><dt>Origem</dt><dd id="artist-country"></dd></div><div id="year-fact"><dt>Desde</dt><dd id="artist-year"></dd></div>
+        </dl></div>
       </section>
 
-      <section class="loading is-hidden" id="loading-state" aria-live="polite" aria-label="Loading artist">
-        <div class="loading__status"><span></span><p>Entering the artist's universe</p><small>Gathering stories, people and releases</small></div>
-        <div class="loading__skeleton"><div class="skeleton skeleton--image"></div><div class="skeleton-copy"><div class="skeleton skeleton--line short"></div><div class="skeleton skeleton--title"></div><div class="skeleton skeleton--line"></div><div class="skeleton skeleton--line medium"></div></div></div>
+      <section class="story reveal" id="historia" aria-labelledby="story-title">
+        <div class="section-index"><span>02</span><i></i><p>A história</p></div>
+        <div class="story-layout"><h3 id="story-title">A história</h3><div class="biography-wrap" id="biography-wrap"><p id="artist-biography"></p><button class="read-more is-hidden" id="read-more" type="button" aria-expanded="false">Ler mais <span>↓</span></button></div></div>
       </section>
 
-      <section class="error-card is-hidden" id="error-state" role="alert" aria-live="assertive">
-        <span class="error-card__code">404 / SIGNAL LOST</span><h2>We couldn't tune into that artist.</h2><p id="error-message"></p>
-        <button id="retry-search" type="button">Try another search</button>
+      <section class="members reveal" id="integrantes" aria-labelledby="members-title">
+        <div class="section-heading"><div class="section-index"><span>03</span><i></i><p>Integrantes</p></div><div><h3 id="members-title">Por trás do som</h3><p>As pessoas que deram forma à identidade do artista.</p></div></div>
+        <div class="members-list" id="artist-members"></div>
       </section>
 
-      <article class="artist is-hidden" id="result" aria-labelledby="artist-name" tabindex="-1">
-        <header class="artist-hero">
-          <div class="artist-hero__media"><img id="artist-image" alt="" src="assets/artist-placeholder.svg"><div class="artist-hero__veil"></div></div>
-          <div class="artist-hero__content">
-            <p class="eyebrow">Artist profile <span></span> SoundScope archive</p>
-            <h2 id="artist-name"></h2>
-            <p class="artist-hero__meta" id="artist-meta"></p>
-            <p class="artist-hero__formed" id="artist-formed"></p>
-          </div>
-        </header>
+      <section class="discography reveal" id="discografia" aria-labelledby="albums-title">
+        <div class="section-heading"><div class="section-index"><span>04</span><i></i><p>Discografia</p></div><div><h3 id="albums-title">Discografia</h3><p id="timeline-range">Lançamentos em ordem cronológica</p></div></div>
+        <div class="timeline" id="artist-albums" tabindex="0" aria-label="Linha do tempo da discografia"></div>
+      </section>
 
-        <nav class="artist-nav" aria-label="Artist sections">
-          <a href="#overview" class="is-active">Overview</a><a href="#albums-section" id="albums-nav">Albums</a><a href="#members-section" id="members-nav">Members</a>
-          <button id="new-search" type="button"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="10.5" cy="10.5" r="6"></circle><path d="m15 15 4 4"></path></svg>New search</button>
-        </nav>
-
-        <section class="overview reveal" id="overview" aria-labelledby="story-title">
-          <div class="section-label"><span>01</span><p>The story</p></div>
-          <div class="overview__body">
-            <h3 id="story-title">Behind the<br><em>sound.</em></h3>
-            <div class="biography-wrap" id="biography-wrap"><p id="artist-biography"></p><button class="read-more is-hidden" id="read-more" type="button" aria-expanded="false">Read more <span>↓</span></button></div>
-          </div>
-          <dl class="quick-facts" aria-label="Artist facts">
-            <div id="genre-fact"><dt>Genre</dt><dd id="artist-genre"></dd></div><div id="country-fact"><dt>Origin</dt><dd id="artist-country"></dd></div><div id="year-fact"><dt>Formed</dt><dd id="artist-year"></dd></div>
-          </dl>
-        </section>
-
-        <section class="content-section albums-section reveal" id="albums-section" aria-labelledby="albums-title">
-          <div class="section-heading"><div class="section-label"><span>02</span><p>Discography</p></div><div><h3 id="albums-title">Records that<br><em>shaped the story.</em></h3><p>Releases, in chronological order.</p></div></div>
-          <div class="albums-grid" id="artist-albums"></div>
-        </section>
-
-        <section class="content-section members-section reveal" id="members-section" aria-labelledby="members-title">
-          <div class="section-heading"><div class="section-label"><span>03</span><p>The people</p></div><div><h3 id="members-title">Members</h3><p>The names behind the sound.</p></div></div>
-          <div class="members-grid" id="artist-members"></div>
-        </section>
-
-        <footer class="data-credit reveal"><p>Data enriched by</p><div><strong>TheAudioDB</strong><span>+</span><strong>MusicBrainz</strong></div><small>Multiple sources. One clearer picture of the music.</small></footer>
-      </article>
-    </main>
-    <footer class="site-footer"><a class="brand" href="#top">SoundScope</a><p>Discover the story behind the sound.</p><span>© 2026 SoundScope</span></footer>
-  </body>
+      <button class="data-trigger" id="data-trigger" type="button" aria-expanded="false" aria-controls="data-panel"><span class="data-dot"></span> Fontes dos dados <b>+</b></button>
+      <aside class="data-panel" id="data-panel" aria-hidden="true" aria-labelledby="data-title">
+        <button id="data-close" type="button" aria-label="Fechar painel">×</button><p class="kicker">Sinal SoundScope</p><h3 id="data-title">Fontes dos dados</h3>
+        <div><span>Fontes conectadas</span><strong>TheAudioDB<br>MusicBrainz</strong></div><div id="source-ids-wrap"><span>IDs de origem</span><code id="source-ids"></code></div>
+        <small>Informações reunidas de múltiplas fontes musicais.</small>
+      </aside><div class="panel-backdrop" id="panel-backdrop"></div>
+    </article>
+  </main>
+  <footer class="site-footer"><a class="brand" href="#inicio">SoundScope</a><p>Música, dados e histórias em uma só frequência.</p><span>© 2026</span></footer>
+</body>
 </html>
