@@ -13,6 +13,8 @@ const elements = {
   genre: document.querySelector("#artist-genre"), country: document.querySelector("#artist-country"),
   year: document.querySelector("#artist-year"), biography: document.querySelector("#artist-biography"),
   badges: document.querySelector("#source-badges")
+  , members: document.querySelector("#artist-members"), membersSection: document.querySelector("#members-section"),
+  albums: document.querySelector("#artist-albums"), albumsSection: document.querySelector("#albums-section")
 };
 
 let requestInProgress = false;
@@ -48,6 +50,31 @@ function renderArtist(data) {
   elements.image.alt = artist.image_url ? `Imagem de ${artist.name}` : `Imagem de ${artist.name} não disponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} não disponível`; };
   elements.badges.replaceChildren(...getSources(data).map((source) => { const badge = document.createElement("span"); badge.className = "source-badge"; badge.textContent = source; return badge; }));
+  renderMembers(Array.isArray(artist.members) ? artist.members : []);
+  renderAlbums(Array.isArray(artist.albums) ? artist.albums : []);
+}
+
+function renderMembers(members) {
+  elements.membersSection.classList.toggle("is-hidden", members.length === 0);
+  elements.members.replaceChildren(...members.map((member) => {
+    const card = document.createElement("article");
+    const name = document.createElement("h4"); name.textContent = member.name || "Nome não informado"; card.append(name);
+    if (member.role) { const role = document.createElement("p"); role.textContent = member.role; card.append(role); }
+    return card;
+  }));
+}
+
+function renderAlbums(albums) {
+  elements.albumsSection.classList.toggle("is-hidden", albums.length === 0);
+  elements.albums.replaceChildren(...albums.map((album) => {
+    const card = document.createElement("article"); card.className = "album";
+    const visual = document.createElement("div"); visual.className = "album__visual";
+    const image = document.createElement("img"); image.src = album.cover_url || PLACEHOLDER_IMAGE; image.alt = album.cover_url ? `Capa de ${album.title}` : `Capa de ${album.title} não disponível`; image.loading = "lazy";
+    image.onerror = () => { image.onerror = null; image.src = PLACEHOLDER_IMAGE; };
+    const title = document.createElement("h4"); title.textContent = album.title || "Título não informado";
+    const year = document.createElement("p"); year.textContent = album.year || "Ano não informado";
+    visual.append(image); card.append(visual, title, year); return card;
+  }));
 }
 
 function friendlyError(error) {

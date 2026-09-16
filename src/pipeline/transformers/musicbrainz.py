@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from src.models import NormalizedArtist
+from src.models import ArtistMember, EnrichedAlbum, NormalizedArtist
 from src.pipeline.transformers.errors import TransformationError
 
 
@@ -52,3 +52,75 @@ def transform_musicbrainz_artist(raw_data: Any) -> NormalizedArtist:
         biography=None,
         image_url=None,
     )
+
+
+def transform_musicbrainz_members(raw_data: Any) -> list[ArtistMember]:
+    """Extrai relações explícitas de integrantes, sem inferir dados ausentes."""
+    if not isinstance(raw_data, dict):
+        raise TransformationError("O RAW do MusicBrainz deve ser um objeto JSON.")
+    result: list[ArtistMember] = []
+    seen: set[str] = set()
+    relations = raw_data.get("relations", [])
+    if not isinstance(relations, list):
+        return result
+    for relation in relations:
+        if not isinstance(relation, dict) or relation.get("type") != "member of band":
+            continue
+        related = relation.get("artist")
+        name = (
+            _optional_text(related.get("name")) if isinstance(related, dict) else None
+        )
+        if not name or name.casefold() in seen:
+            continue
+        attributes = relation.get("attributes")
+        roles = (
+            [
+                value.strip()
+                for value in attributes
+                if isinstance(value, str) and value.strip()
+            ]
+            if isinstance(attributes, list)
+            else []
+        )
+        ended = relation.get("ended")
+        result.append(
+            ArtistMember(
+                name,
+                " / ".join(roles) or None,
+                not ended if isinstance(ended, bool) else None,
+            )
+        )
+        seen.add(name.casefold())
+    return result
+
+
+def transform_musicbrainz_albums(raw_data: Any) -> list[EnrichedAlbum]:
+    """Normaliza release groups de álbuns retornados pelo MusicBrainz."""
+    if not isinstance(raw_data, dict) or not isinstance(
+        raw_data.get("release-groups"), list
+    ):
+        raise TransformationError("O campo 'release-groups' deve ser uma lista.")
+    result: list[EnrichedAlbum] = []
+    for group in raw_data["release-groups"]:
+        if not isinstance(group, dict) or group.get("primary-type") not in (
+            None,
+            "Album",
+        ):
+            continue
+        title, group_id = _optional_text(group.get("title")), _optional_text(
+            group.get("id")
+        )
+        if not title or not group_id:
+            continue
+        date = _optional_text(group.get("first-release-date"))
+        year = date[:4] if date and date[:4].isdigit() else None
+        result.append(
+            EnrichedAlbum(
+                title,
+                year,
+                None,
+                group_id,
+                f"https://coverartarchive.org/release-group/{group_id}/front-500",
+            )
+        )
+    return result

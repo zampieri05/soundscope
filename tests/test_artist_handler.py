@@ -9,7 +9,6 @@ from src.handlers.artist import lambda_handler
 from src.models import EnrichedArtist
 from src.services.theaudiodb.client import ArtistNotFoundError
 
-
 PIPELINE = "src.handlers.artist.process_enriched_artist"
 
 
@@ -60,6 +59,8 @@ class ArtistLambdaHandlerTests(unittest.TestCase):
                         "theaudiodb": "111279",
                         "musicbrainz": "mbid-1",
                     },
+                    "members": [],
+                    "albums": [],
                 },
                 "metadata": {
                     "artist_name": "Metallica",
@@ -86,9 +87,7 @@ class ArtistLambdaHandlerTests(unittest.TestCase):
             "artist_name": "Example",
         }
 
-        response = lambda_handler(
-            {"pathParameters": {"artist_name": "Example"}}, None
-        )
+        response = lambda_handler({"pathParameters": {"artist_name": "Example"}}, None)
 
         self.assertEqual(
             self.assert_proxy_response(response, 200),
@@ -124,9 +123,7 @@ class ArtistLambdaHandlerTests(unittest.TestCase):
 
     @patch(PIPELINE, side_effect=ArtistNotFoundError("sensitive upstream message"))
     def test_artist_not_found_returns_safe_404(self, pipeline):
-        response = lambda_handler(
-            {"pathParameters": {"artist_name": "Unknown"}}, None
-        )
+        response = lambda_handler({"pathParameters": {"artist_name": "Unknown"}}, None)
         self.assertEqual(
             self.assert_proxy_response(response, 404), {"error": "artist not found"}
         )

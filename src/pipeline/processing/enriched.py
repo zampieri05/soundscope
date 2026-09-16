@@ -7,7 +7,10 @@ from src.models import EnrichedArtist, NormalizedArtist
 from src.pipeline.enrichment import enrich_artist
 from src.pipeline.ingestion.theaudiodb import _first_artist_id
 from src.pipeline.transformers import (
+    transform_musicbrainz_albums,
     transform_musicbrainz_artist,
+    transform_musicbrainz_members,
+    transform_theaudiodb_albums,
     transform_theaudiodb_artist,
 )
 from src.services.musicbrainz import client as musicbrainz_client
@@ -69,6 +72,19 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     if not isinstance(theaudiodb_artist, NormalizedArtist):
         raise TypeError("O transformer do TheAudioDB deve retornar NormalizedArtist.")
 
+    extended_catalog = isinstance(
+        getattr(theaudiodb_client, "AlbumsNotFoundError", None), type
+    )
+    if not extended_catalog:
+        theaudiodb_albums = []
+    else:
+        try:
+            theaudiodb_albums_raw = theaudiodb_client.search_albums(theaudiodb_id)
+            save_raw_json("theaudiodb", theaudiodb_albums_raw, "albums", theaudiodb_id)
+            theaudiodb_albums = transform_theaudiodb_albums(theaudiodb_albums_raw)
+        except theaudiodb_client.AlbumsNotFoundError:
+            theaudiodb_albums = []
+
     musicbrainz_search_raw = musicbrainz_client.search_artist(artist_name)
     musicbrainz_match = _first_musicbrainz_artist(musicbrainz_search_raw)
     mbid = _musicbrainz_id(musicbrainz_match)
@@ -84,11 +100,32 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     if not isinstance(musicbrainz_artist, NormalizedArtist):
         raise TypeError("O transformer do MusicBrainz deve retornar NormalizedArtist.")
 
-    enriched = enrich_artist(theaudiodb_artist, musicbrainz_artist)
+    members = transform_musicbrainz_members(musicbrainz_details_raw)
+    if extended_catalog:
+        musicbrainz_albums_raw = musicbrainz_client.get_release_groups(mbid)
+        save_raw_json("musicbrainz", musicbrainz_albums_raw, "release-groups", mbid)
+        musicbrainz_albums = transform_musicbrainz_albums(musicbrainz_albums_raw)
+    else:
+        musicbrainz_albums = []
+
+    if extended_catalog:
+        enriched = enrich_artist(
+            theaudiodb_artist,
+            musicbrainz_artist,
+            theaudiodb_albums,
+            musicbrainz_albums,
+            members,
+        )
+    else:
+        enriched = enrich_artist(theaudiodb_artist, musicbrainz_artist)
     if not isinstance(enriched, EnrichedArtist):
         raise TypeError("O enrichment deve retornar um EnrichedArtist.")
+    serialized = asdict(enriched)
+    if not extended_catalog:
+        serialized.pop("members", None)
+        serialized.pop("albums", None)
     processed_key = save_processed_json(
-        asdict(enriched), "artists", theaudiodb_id, data_type="enriched"
+        serialized, "artists", theaudiodb_id, data_type="enriched"
     )
     save_enriched_artist(enriched)
 
