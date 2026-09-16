@@ -97,6 +97,7 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
         self.assertEqual(
             result,
             {
+                "artist": self.enriched,
                 "artist_name": "Metallica",
                 "theaudiodb_artist_id": "111279",
                 "musicbrainz_mbid": "mbid-1",

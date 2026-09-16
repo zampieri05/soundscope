@@ -1,11 +1,15 @@
 """AWS Lambda proxy handler for enriched artist processing."""
 
+from dataclasses import asdict, is_dataclass
 import json
 import logging
 from typing import Any
 
 from src.pipeline.ingestion.errors import UsableArtistNotFoundError
-from src.pipeline.processing import process_enriched_artist
+from src.pipeline.processing import (
+    EnrichedArtistProcessingResult,
+    process_enriched_artist,
+)
 from src.services.musicbrainz.client import (
     ArtistNotFoundError as MusicBrainzArtistNotFoundError,
 )
@@ -32,7 +36,22 @@ def _response(status_code: int, body: Any) -> dict[str, Any]:
     return {
         "statusCode": status_code,
         "headers": _HEADERS.copy(),
-        "body": json.dumps(body, ensure_ascii=False),
+        "body": json.dumps(body, ensure_ascii=False, default=_json_default),
+    }
+
+
+def _json_default(value: Any) -> Any:
+    """Convert domain dataclasses, including nested ones, to JSON values."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _success_body(result: EnrichedArtistProcessingResult) -> dict[str, Any]:
+    """Separate frontend artist data from operational pipeline metadata."""
+    return {
+        "artist": result["artist"],
+        "metadata": {key: value for key, value in result.items() if key != "artist"},
     }
 
 
@@ -52,7 +71,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     artist_name = artist_name.strip()
     try:
         result = process_enriched_artist(artist_name)
-        return _response(200, result)
+        return _response(200, _success_body(result))
     except _NOT_FOUND_ERRORS:
         logger.info("Artist not found: %s", artist_name)
         return _response(404, {"error": "artist not found"})

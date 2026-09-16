@@ -1,10 +1,12 @@
 """Unit tests for the API Gateway-compatible artist Lambda handler."""
 
+from dataclasses import dataclass
 import json
 import unittest
 from unittest.mock import patch
 
 from src.handlers.artist import lambda_handler
+from src.models import EnrichedArtist
 from src.services.theaudiodb.client import ArtistNotFoundError
 
 
@@ -20,16 +22,81 @@ class ArtistLambdaHandlerTests(unittest.TestCase):
 
     @patch(PIPELINE)
     def test_valid_artist_returns_200_and_calls_pipeline(self, pipeline):
-        pipeline.return_value = {"artist_name": "Metallica", "processed_s3_key": "key"}
+        enriched = EnrichedArtist(
+            name="Metallica",
+            country="US",
+            genre="Metal",
+            formed_year="1981",
+            biography=None,
+            image_url="https://example.com/metallica.jpg",
+            source_ids={"theaudiodb": "111279", "musicbrainz": "mbid-1"},
+        )
+        pipeline.return_value = {
+            "artist": enriched,
+            "artist_name": "Metallica",
+            "theaudiodb_artist_id": "111279",
+            "musicbrainz_mbid": "mbid-1",
+            "source": "theaudiodb+musicbrainz",
+            "theaudiodb_raw_s3_key": "raw/tadb.json",
+            "musicbrainz_raw_s3_key": "raw/mb.json",
+            "processed_s3_key": "processed/enriched.json",
+        }
 
         response = lambda_handler(
             {"pathParameters": {"artist_name": "  Metallica  "}}, None
         )
 
         self.assertEqual(
-            self.assert_proxy_response(response, 200), pipeline.return_value
+            self.assert_proxy_response(response, 200),
+            {
+                "artist": {
+                    "name": "Metallica",
+                    "country": "US",
+                    "genre": "Metal",
+                    "formed_year": "1981",
+                    "biography": None,
+                    "image_url": "https://example.com/metallica.jpg",
+                    "source_ids": {
+                        "theaudiodb": "111279",
+                        "musicbrainz": "mbid-1",
+                    },
+                },
+                "metadata": {
+                    "artist_name": "Metallica",
+                    "theaudiodb_artist_id": "111279",
+                    "musicbrainz_mbid": "mbid-1",
+                    "source": "theaudiodb+musicbrainz",
+                    "theaudiodb_raw_s3_key": "raw/tadb.json",
+                    "musicbrainz_raw_s3_key": "raw/mb.json",
+                    "processed_s3_key": "processed/enriched.json",
+                },
+            },
         )
         pipeline.assert_called_once_with("Metallica")
+
+    @patch(PIPELINE)
+    def test_serializes_nested_dataclasses_lists_and_optional_values(self, pipeline):
+        @dataclass
+        class NestedValue:
+            labels: list[str]
+            optional: str | None = None
+
+        pipeline.return_value = {
+            "artist": NestedValue(labels=["one", "two"]),
+            "artist_name": "Example",
+        }
+
+        response = lambda_handler(
+            {"pathParameters": {"artist_name": "Example"}}, None
+        )
+
+        self.assertEqual(
+            self.assert_proxy_response(response, 200),
+            {
+                "artist": {"labels": ["one", "two"], "optional": None},
+                "metadata": {"artist_name": "Example"},
+            },
+        )
 
     @patch(PIPELINE)
     def test_missing_path_parameters_returns_400(self, pipeline):

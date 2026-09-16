@@ -17,8 +17,9 @@ from src.storage.s3 import save_processed_json, save_raw_json
 
 
 class EnrichedArtistProcessingResult(TypedDict):
-    """Referências e identificadores produzidos pelo pipeline multi-source."""
+    """Artista enriquecido e rastreabilidade produzidos pelo pipeline."""
 
+    artist: EnrichedArtist
     artist_name: str
     theaudiodb_artist_id: str
     musicbrainz_mbid: str
@@ -92,6 +93,7 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     save_enriched_artist(enriched)
 
     return {
+        "artist": enriched,
         "artist_name": artist_name,
         "theaudiodb_artist_id": theaudiodb_id,
         "musicbrainz_mbid": mbid,
