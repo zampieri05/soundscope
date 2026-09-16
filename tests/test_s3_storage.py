@@ -163,6 +163,30 @@ class SaveProcessedJsonTests(unittest.TestCase):
             save_processed_json({}, "albums", "123", s3_client=self.client)
         self.client.put_object.assert_not_called()
 
+    def test_stores_enriched_artist_in_distinct_backward_compatible_prefix(self):
+        moment = datetime(2026, 9, 16, 12, 30, tzinfo=timezone.utc)
+
+        key = save_processed_json(
+            {"name": "Björk", "source_ids": {"theaudiodb": "123"}},
+            "artists",
+            "123",
+            data_type="enriched",
+            s3_client=self.client,
+            processed_at=moment,
+        )
+
+        self.assertEqual(
+            key,
+            "processed/enriched/artists/123/20260916T123000000000Z.json",
+        )
+
+    def test_rejects_unknown_processed_data_type(self):
+        with self.assertRaisesRegex(S3StorageError, "data_type processado"):
+            save_processed_json(
+                {}, "artists", "123", data_type="unknown", s3_client=self.client
+            )
+        self.client.put_object.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
