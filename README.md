@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase atual: 9 — transformação e camada processed.
+> **Status:** Fase atual: 10 — Multi-source Data Enrichment.
 
 ## Objetivo
 
@@ -196,6 +196,42 @@ from src.pipeline.processing import process_theaudiodb_artist
 result = process_theaudiodb_artist("Metallica")
 ```
 
+### Fase 10 — Multi-source Data Enrichment
+
+O `process_enriched_artist()` coordena o fluxo completo das duas fontes sem
+assumir responsabilidades dos clients, transformers, enrichment ou storage:
+
+```text
+TheAudioDB  ─┐
+             ├──► Normalize ──► Enrich ──► processed/
+MusicBrainz ─┘
+```
+
+As respostas usadas são preservadas separadamente em `raw/theaudiodb/` e
+`raw/musicbrainz/` (incluindo a busca e os detalhes do MusicBrainz). Manter o RAW de cada fonte permite
+auditar o que cada API realmente retornou e reprocessar os dados quando o
+esquema interno evoluir. A normalização vem antes do enrichment para que as
+regras de combinação operem sobre um formato comum, sem conhecer os diferentes
+nomes e formatos de campos das APIs.
+
+O enrichment cria um terceiro objeto e nunca modifica os RAW originais nem os
+dois `NormalizedArtist`. Um registro **normalized** representa uma única fonte
+no esquema comum; um registro **enriched** combina os valores complementares e
+mantém os identificadores das duas fontes. O documento final usa a convenção:
+
+```text
+processed/enriched/artists/<theaudiodb_artist_id>/<YYYYMMDDTHHMMSSffffffZ>.json
+```
+
+Essa nova subdivisão não altera as chaves normalizadas da Fase 9. O pipeline
+retorna ambos os IDs e todas as chaves S3 criadas para rastreabilidade.
+
+```python
+from src.pipeline.processing import process_enriched_artist
+
+result = process_enriched_artist("Metallica")
+```
+
 ## RAW x NORMALIZED x ENRICHED
 
 | Camada | Conteúdo | Finalidade |
@@ -214,7 +250,9 @@ soundscope-data/
 │   ├── theaudiodb/
 │   └── musicbrainz/
 └── processed/
-    └── artists/
+    ├── artists/
+    └── enriched/
+        └── artists/
 ```
 
 Essa separação representa uma forma simples de **Data Lake**: o original não é sobrescrito pelo dado preparado para consumo.

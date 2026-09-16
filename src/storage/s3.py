@@ -37,11 +37,17 @@ def _raw_key(
     return f"raw/{source}/{entity_type}/{safe_id}/{timestamp}.json"
 
 
-def _processed_key(entity_type: str, entity_id: str, processed_at: datetime) -> str:
+def _processed_key(
+    entity_type: str,
+    entity_id: str,
+    processed_at: datetime,
+    data_type: str | None = None,
+) -> str:
     """Monta a chave histórica da camada processada."""
     timestamp = processed_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     safe_id = quote(entity_id, safe="")
-    return f"processed/{entity_type}/{safe_id}/{timestamp}.json"
+    prefix = f"processed/{data_type}" if data_type else "processed"
+    return f"{prefix}/{entity_type}/{safe_id}/{timestamp}.json"
 
 
 def _json_body(data: Any, layer: str) -> bytes:
@@ -130,12 +136,16 @@ def save_processed_json(
     entity_type: str,
     entity_id: str,
     *,
+    data_type: str | None = None,
     s3_client: Any | None = None,
     processed_at: datetime | None = None,
 ) -> str:
     """Serializa um modelo preparado para consumo na camada ``processed/``.
 
-    A chave segue ``processed/<entity_type>/<entity_id>/<timestamp>.json``.
+    Por padrão, a chave segue
+    ``processed/<entity_type>/<entity_id>/<timestamp>.json`` para preservar a
+    API da Fase 9. ``data_type='enriched'`` separa documentos enriquecidos em
+    ``processed/enriched/``.
     O chamador deve fornecer um documento JSON explícito, e não uma dataclass ou
     outro objeto cuja serialização implícita possa esconder mudanças de esquema.
     """
@@ -143,12 +153,16 @@ def save_processed_json(
     if entity_type != "artists":
         raise S3StorageError(f"entity_type processado inválido: {entity_type!r}.")
     entity_id = _required_text(entity_id, "entity_id")
+    if data_type is not None:
+        data_type = _required_text(data_type, "data_type").lower()
+        if data_type != "enriched":
+            raise S3StorageError(f"data_type processado inválido: {data_type!r}.")
     bucket = _configured_bucket()
     body = _json_body(data, "processado")
 
     moment = processed_at or datetime.now(timezone.utc)
     if not isinstance(moment, datetime) or moment.tzinfo is None:
         raise S3StorageError("processed_at deve ser um datetime com fuso horário.")
-    key = _processed_key(entity_type, entity_id, moment)
+    key = _processed_key(entity_type, entity_id, moment, data_type)
     _put_json(bucket, key, body, s3_client, "documento processado")
     return key
