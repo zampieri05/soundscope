@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 from botocore.exceptions import ClientError
 
-from src.storage import S3StorageError, save_raw_json
+from src.storage import S3StorageError, save_processed_json, save_raw_json
 
 
 class SaveRawJsonTests(unittest.TestCase):
@@ -115,6 +115,53 @@ class SaveRawJsonTests(unittest.TestCase):
 
         boto_client.assert_called_once_with("s3")
         http_request.assert_not_called()
+
+
+class SaveProcessedJsonTests(unittest.TestCase):
+    def setUp(self):
+        self.client = Mock()
+        self.bucket = patch.dict(
+            os.environ, {"SOUNDSCOPE_S3_BUCKET": "bucket-de-teste"}, clear=False
+        )
+        self.bucket.start()
+
+    def tearDown(self):
+        self.bucket.stop()
+
+    def test_stores_processed_artist_with_documented_key(self):
+        document = {
+            "source": "theaudiodb",
+            "source_artist_id": "123",
+            "name": "Björk",
+            "country": "Iceland",
+        }
+        moment = datetime(2026, 9, 16, 12, 30, tzinfo=timezone.utc)
+
+        key = save_processed_json(
+            document,
+            "artists",
+            "123",
+            s3_client=self.client,
+            processed_at=moment,
+        )
+
+        self.assertEqual(
+            key, "processed/artists/123/20260916T123000000000Z.json"
+        )
+        call = self.client.put_object.call_args.kwargs
+        self.assertEqual(call["Bucket"], "bucket-de-teste")
+        self.assertEqual(call["Key"], key)
+        self.assertEqual(call["ContentType"], "application/json")
+        self.assertEqual(json.loads(call["Body"]), document)
+
+    def test_rejects_implicit_object_serialization_and_invalid_type(self):
+        with self.assertRaisesRegex(S3StorageError, "objeto ou lista"):
+            save_processed_json(
+                object(), "artists", "123", s3_client=self.client
+            )
+        with self.assertRaisesRegex(S3StorageError, "entity_type processado"):
+            save_processed_json({}, "albums", "123", s3_client=self.client)
+        self.client.put_object.assert_not_called()
 
 
 if __name__ == "__main__":

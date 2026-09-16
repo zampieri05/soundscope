@@ -1,4 +1,4 @@
-"""Persistência de documentos RAW no Amazon S3."""
+"""Persistência de documentos JSON RAW e processados no Amazon S3."""
 
 import json
 import os
@@ -16,7 +16,7 @@ _ENTITY_TYPES_BY_SOURCE = {
 
 
 class S3StorageError(Exception):
-    """Indica que um documento RAW não pôde ser armazenado no S3."""
+    """Indica que um documento não pôde ser armazenado no S3."""
 
 
 def _required_text(value: Any, field: str) -> str:
@@ -35,6 +35,54 @@ def _raw_key(
     timestamp = extracted_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     safe_id = quote(entity_id, safe="")
     return f"raw/{source}/{entity_type}/{safe_id}/{timestamp}.json"
+
+
+def _processed_key(entity_type: str, entity_id: str, processed_at: datetime) -> str:
+    """Monta a chave histórica da camada processada."""
+    timestamp = processed_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    safe_id = quote(entity_id, safe="")
+    return f"processed/{entity_type}/{safe_id}/{timestamp}.json"
+
+
+def _json_body(data: Any, layer: str) -> bytes:
+    if not isinstance(data, (dict, list)):
+        raise S3StorageError(
+            f"O documento {layer} deve ser um objeto ou lista JSON."
+        )
+    try:
+        return json.dumps(data, ensure_ascii=False).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise S3StorageError(
+            f"O documento {layer} não é serializável como JSON."
+        ) from exc
+
+
+def _configured_bucket() -> str:
+    bucket = os.getenv("SOUNDSCOPE_S3_BUCKET", "").strip()
+    if not bucket:
+        raise S3StorageError("SOUNDSCOPE_S3_BUCKET não está configurado.")
+    return bucket
+
+
+def _put_json(
+    bucket: str,
+    key: str,
+    body: bytes,
+    s3_client: Any | None,
+    layer: str,
+) -> None:
+    try:
+        client = s3_client or boto3.client("s3")
+        client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=body,
+            ContentType="application/json",
+        )
+    except (BotoCoreError, ClientError) as exc:
+        raise S3StorageError(
+            f"Falha ao salvar o {layer} em s3://{bucket}/{key}."
+        ) from exc
 
 
 def save_raw_json(
@@ -64,33 +112,43 @@ def save_raw_json(
         )
     entity_id = _required_text(entity_id, "entity_id")
 
-    bucket = os.getenv("SOUNDSCOPE_S3_BUCKET", "").strip()
-    if not bucket:
-        raise S3StorageError("SOUNDSCOPE_S3_BUCKET não está configurado.")
-    if not isinstance(data, (dict, list)):
-        raise S3StorageError("O documento RAW deve ser um objeto ou lista JSON.")
-
-    try:
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        raise S3StorageError("O documento RAW não é serializável como JSON.") from exc
+    bucket = _configured_bucket()
+    body = _json_body(data, "RAW")
 
     moment = extracted_at or datetime.now(timezone.utc)
     if not isinstance(moment, datetime) or moment.tzinfo is None:
         raise S3StorageError("extracted_at deve ser um datetime com fuso horário.")
     key = _raw_key(source, entity_type, entity_id, moment)
 
-    try:
-        client = s3_client or boto3.client("s3")
-        client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=body,
-            ContentType="application/json",
-        )
-    except (BotoCoreError, ClientError) as exc:
-        raise S3StorageError(
-            f"Falha ao salvar o RAW em s3://{bucket}/{key}."
-        ) from exc
+    _put_json(bucket, key, body, s3_client, "RAW")
 
+    return key
+
+
+def save_processed_json(
+    data: Any,
+    entity_type: str,
+    entity_id: str,
+    *,
+    s3_client: Any | None = None,
+    processed_at: datetime | None = None,
+) -> str:
+    """Serializa um modelo preparado para consumo na camada ``processed/``.
+
+    A chave segue ``processed/<entity_type>/<entity_id>/<timestamp>.json``.
+    O chamador deve fornecer um documento JSON explícito, e não uma dataclass ou
+    outro objeto cuja serialização implícita possa esconder mudanças de esquema.
+    """
+    entity_type = _required_text(entity_type, "entity_type").lower()
+    if entity_type != "artists":
+        raise S3StorageError(f"entity_type processado inválido: {entity_type!r}.")
+    entity_id = _required_text(entity_id, "entity_id")
+    bucket = _configured_bucket()
+    body = _json_body(data, "processado")
+
+    moment = processed_at or datetime.now(timezone.utc)
+    if not isinstance(moment, datetime) or moment.tzinfo is None:
+        raise S3StorageError("processed_at deve ser um datetime com fuso horário.")
+    key = _processed_key(entity_type, entity_id, moment)
+    _put_json(bucket, key, body, s3_client, "documento processado")
     return key
