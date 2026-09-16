@@ -52,6 +52,7 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
             "transform_musicbrainz_artist": Mock(return_value=self.mb_normalized),
             "enrich_artist": Mock(return_value=self.enriched),
             "save_processed_json": Mock(return_value="enriched-key"),
+            "save_enriched_artist": Mock(),
         }
 
     def test_complete_flow_preserves_raw_serializes_and_returns_traceability(self):
@@ -92,6 +93,7 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
             "111279",
             data_type="enriched",
         )
+        mocks["save_enriched_artist"].assert_called_once_with(self.enriched)
         self.assertEqual(
             result,
             {
@@ -149,6 +151,7 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
             ("transform_musicbrainz_artist", None),
             ("enrich_artist", None),
             ("save_processed_json", None),
+            ("save_enriched_artist", None),
         ]
         for failed_index, (owner, method) in enumerate(stage_paths):
             with self.subTest(stage=failed_index):
@@ -174,10 +177,45 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
                     if method:
                         target = getattr(target, method)
                     target.side_effect = error
-                with patch.multiple(MODULE, **mocks), self.assertRaises(RuntimeError) as raised:
+                with patch.multiple(MODULE, **mocks), self.assertRaises(
+                    RuntimeError
+                ) as raised:
                     process_enriched_artist("Metallica")
                 self.assertIs(raised.exception, error)
-                self.assertNotIn("stage_8", [item[0] for item in ordered.mock_calls]) if failed_index < 8 else None
+                if failed_index < 9:
+                    self.assertNotIn(
+                        "stage_9", [item[0] for item in ordered.mock_calls]
+                    )
+
+    def test_dynamodb_runs_only_after_processed_s3_succeeds(self):
+        mocks = self._mocks()
+        order = Mock()
+        order.attach_mock(mocks["save_processed_json"], "s3")
+        order.attach_mock(mocks["save_enriched_artist"], "dynamodb")
+
+        with patch.multiple(MODULE, **mocks):
+            process_enriched_artist("Metallica")
+
+        self.assertEqual(
+            [entry[0] for entry in order.mock_calls], ["s3", "dynamodb"]
+        )
+
+        mocks = self._mocks()
+        failure = RuntimeError("S3 indisponível")
+        mocks["save_processed_json"].side_effect = failure
+        with patch.multiple(MODULE, **mocks), self.assertRaises(RuntimeError):
+            process_enriched_artist("Metallica")
+        mocks["save_enriched_artist"].assert_not_called()
+
+    def test_dynamodb_failure_is_propagated(self):
+        mocks = self._mocks()
+        failure = RuntimeError("DynamoDB indisponível")
+        mocks["save_enriched_artist"].side_effect = failure
+        with patch.multiple(MODULE, **mocks), self.assertRaises(
+            RuntimeError
+        ) as raised:
+            process_enriched_artist("Metallica")
+        self.assertIs(raised.exception, failure)
 
 
 if __name__ == "__main__":
