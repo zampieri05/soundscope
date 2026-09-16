@@ -440,6 +440,62 @@ GET /spotify/top-tracks
 GET /spotify/recent
 ```
 
+## Frontend web
+
+A primeira versão da interface do **SoundScope** está em `frontend/` e usa apenas
+HTML, CSS e JavaScript, sem build, framework ou dependências de execução. Ela
+pesquisa artistas, apresenta os campos públicos do perfil e mantém metadados
+internos (IDs e chaves S3) fora da interface. A arquitetura de consulta é:
+
+```text
+Navegador (frontend estático)
+        │  GET /artist/{artist_name}
+        ▼
+Amazon API Gateway → AWS Lambda → TheAudioDB + MusicBrainz
+                                      │
+                                      └→ S3 + DynamoDB
+```
+
+### Executar localmente
+
+Sirva a pasta por HTTP a partir da raiz do repositório:
+
+```bash
+python -m http.server 8080 --directory frontend
+```
+
+Abra `http://localhost:8080`, digite `Metallica` e selecione **Buscar** (ou
+pressione Enter). Abrir o HTML diretamente com `file://` não é recomendado,
+pois as políticas do navegador e os caminhos relativos podem se comportar de
+forma diferente.
+
+### Configuração da API
+
+A URL pública fica centralizada em `API_BASE_URL`, no início de
+`frontend/js/app.js`. Para apontar a interface para outro estágio ou API, altere
+apenas essa constante, sem adicionar credenciais, tokens ou segredos. O nome do
+artista é codificado com `encodeURIComponent` antes de compor a rota.
+
+### Publicação estática
+
+Todo o conteúdo de `frontend/` pode ser publicado diretamente em um host de
+arquivos estáticos, como Amazon S3 com CloudFront, AWS Amplify Hosting, GitHub
+Pages ou Netlify. Configure `frontend/index.html` como documento inicial e
+preserve as pastas `css/`, `js/` e `assets/`. Não há comando de build. Em
+produção, prefira HTTPS e, no caso de S3, mantenha o bucket privado atrás do
+CloudFront em vez de habilitar acesso público irrestrito.
+
+### CORS no API Gateway
+
+Como navegador e API usam origens diferentes, o API Gateway precisa responder
+com CORS. A resposta da rota `GET /artist/{artist_name}` — inclusive respostas
+de erro — deve incluir `Access-Control-Allow-Origin` com o domínio publicado do
+frontend (ou `*` para uma demonstração pública sem credenciais) e permitir o
+método `GET` e o header `Content-Type`/`Accept`. Se o API Gateway exigir uma
+requisição preflight, configure também `OPTIONS` com `Access-Control-Allow-Methods: GET,OPTIONS`
+e `Access-Control-Allow-Headers: Content-Type,Accept`. Após alterar CORS, faça o
+deploy do estágio da API. Esta documentação não modifica a infraestrutura AWS.
+
 ## Estrutura do repositório
 
 ```text
@@ -585,7 +641,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Banco de consulta | Amazon DynamoDB | persistência de artistas enriquecidos implementada |
 | Computação e API | Lambda implementada; API Gateway | próxima fase |
 | Observabilidade | CloudWatch | planejado |
-| Frontend | a definir quando a interface começar | estrutura reservada |
+| Frontend | HTML, CSS e JavaScript puros | primeira versão funcional |
 
 ## Roadmap
 
@@ -603,7 +659,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 12:** AWS Lambda para o pipeline de artistas (API Gateway na próxima fase)
 - [ ] **Fase 13:** Spotify OAuth
 - [ ] **Fase 14:** dados pessoais Spotify
-- [ ] **Fase 15:** frontend
+- [x] **Fase 15:** primeira versão funcional do frontend
 - [ ] **Fase 16:** CloudWatch, logs e tratamento de erros
 - [ ] **Fase 17:** testes e documentação final
 
@@ -617,5 +673,5 @@ independentes e o enriquecimento estão prontos. O fluxo TheAudioDB também
 persiste seu `NormalizedArtist` na camada processed, e o fluxo multi-source
 persiste `EnrichedArtist` no S3 antes de atualizar a tabela DynamoDB externa.
 Nenhum recurso AWS é criado pelo projeto. O handler e o empacotamento da Lambda
-estão prontos, mas deploy, API Gateway, integração Spotify e frontend funcional
-continuam para fases futuras.
+estão prontos, mas a integração Spotify e as evoluções de observabilidade
+continuam para fases futuras; a API Gateway pública e a primeira versão do frontend estão disponíveis.

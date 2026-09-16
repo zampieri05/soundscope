@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SoundScope — explore artistas através de dados musicais.">
+    <meta name="theme-color" content="#101112">
+    <title>SoundScope — Music Data Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="SoundScope, início">
+        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>SOUNDSCOPE</span>
+      </a>
+      <div class="header-meta"><span>Music Data Explorer</span><span>Est. 2026</span></div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero__index" aria-hidden="true"><span>SS—001</span><span>Arquivo musical / Dados conectados</span></div>
+        <h1 id="hero-title"><span class="hero__brand">SOUNDSCOPE</span><span class="hero__statement">Explore artistas através de dados.</span></h1>
+        <p class="hero__description">Um arquivo vivo de histórias, origens e sonoridades — organizado a partir de diferentes fontes musicais.</p>
+
+        <form class="search" id="search-form" role="search" novalidate>
+          <label class="sr-only" for="artist-input">Nome do artista</label>
+          <div class="search__box">
+            <svg class="search__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
+            <input id="artist-input" name="artist" type="search" placeholder="Pesquise um artista..." autocomplete="off" maxlength="120" aria-describedby="form-message">
+            <button id="search-button" type="submit">
+              <span class="button-label">Buscar</span>
+              <span class="button-spinner" aria-hidden="true"></span>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M4 10h12m-5-5 5 5-5 5"></path></svg>
+            </button>
+          </div>
+          <p class="form-message" id="form-message" role="alert" aria-live="polite"></p>
+        </form>
+
+        <div class="spectrum" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      </section>
+
+      <section class="status-panel is-hidden" id="loading-state" aria-live="polite" aria-label="Carregando resultado">
+        <div class="loading-message"><span class="pulse-dot"></span>Explorando dados musicais...</div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton--image"></div>
+          <div class="skeleton-content"><div class="skeleton skeleton--tag"></div><div class="skeleton skeleton--title"></div><div class="skeleton skeleton--line"></div><div class="skeleton skeleton--line short"></div></div>
+        </div>
+      </section>
+
+      <section class="error-card is-hidden" id="error-state" role="alert" aria-live="assertive">
+        <div class="error-card__icon" aria-hidden="true">!</div>
+        <div><h2>Algo saiu do ritmo</h2><p id="error-message"></p></div>
+      </section>
+
+      <section class="result is-hidden" id="result" aria-labelledby="artist-name" tabindex="-1">
+        <article class="artist-card">
+          <div class="artist-card__visual">
+            <img id="artist-image" alt="" src="assets/artist-placeholder.svg">
+            <div class="image-shade" aria-hidden="true"></div>
+            <span class="visual-label">Arquivo visual / Artist profile</span>
+          </div>
+          <div class="artist-card__content">
+            <div class="dossier-heading"><div class="result-kicker">Dossiê do artista</div><span>SS / PROFILE / 001</span></div>
+            <h2 id="artist-name"></h2>
+            <div class="facts" aria-label="Informações do artista">
+              <div class="fact"><span>Gênero</span><strong id="artist-genre">—</strong></div>
+              <div class="fact"><span>Origem</span><strong id="artist-country">—</strong></div>
+              <div class="fact"><span>Em atividade desde</span><strong id="artist-year">—</strong></div>
+            </div>
+            <div class="biography"><h3>Notas biográficas</h3><p id="artist-biography"></p></div>
+            <div class="sources"><span>Dados conectados por</span><div id="source-badges" class="source-badges"></div></div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      <div><strong>SoundScope</strong><span aria-hidden="true">•</span> Music Data Explorer</div>
+      <p>Powered by <span>AWS</span>, <span>TheAudioDB</span> and <span>MusicBrainz</span></p>
+    </footer>
+  </body>
+</html>

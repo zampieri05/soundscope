@@ -1,5 +1,9 @@
 # Frontend
 
-Espaço reservado para a futura interface web do SoundScope.
+Interface estática do SoundScope feita com HTML, CSS e JavaScript puros. Abra-a por um servidor HTTP local (não diretamente pelo protocolo `file://`):
 
-A escolha da tecnologia e a implementação das telas serão feitas na fase de frontend. Nenhum framework foi adicionado agora para evitar uma decisão prematura e dependências sem uso.
+```bash
+python -m http.server 8080 --directory frontend
+```
+
+Depois, acesse `http://localhost:8080`. A URL pública da API e o timeout ficam nas constantes no início de `js/app.js`.
