@@ -242,6 +242,18 @@ h1 {
 .biography { margin: 32px 0; }
 .biography h3 { margin: 0 0 14px; color: var(--ice); font: 500 9px "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: 0.12em; }
 .biography p { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 6; -webkit-box-orient: vertical; margin: 0; color: var(--secondary); font-size: 13px; line-height: 1.78; }
+.archive-section { padding: 68px 0; border-bottom: 1px solid var(--rule-strong); }
+.archive-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 35px; }
+.archive-heading span { color: var(--quiet); font: 500 9px "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .12em; }
+.archive-heading h3 { margin: 0; font-size: clamp(30px, 5vw, 58px); font-weight: 500; letter-spacing: -.045em; text-transform: uppercase; }
+.members-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
+.members-grid article { min-height: 115px; padding: 24px 18px 20px 0; border-bottom: 1px solid var(--rule); }
+.members-grid article:not(:nth-child(3n+1)) { padding-left: 18px; border-left: 1px solid var(--rule); }
+.members-grid h4, .album h4 { margin: 0; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.members-grid p, .album p { margin: 9px 0 0; color: var(--secondary); font: 400 10px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.albums-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 34px 20px; }
+.album__visual { aspect-ratio: 1; margin-bottom: 17px; overflow: hidden; border: 1px solid var(--rule); background: var(--panel); }
+.album__visual img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.65); }
 .sources { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--rule); }
 .source-badges { display: flex; gap: 17px; }
 .source-badge { color: var(--secondary); font: 400 9px "IBM Plex Mono", monospace; letter-spacing: 0.04em; }
@@ -286,6 +298,10 @@ footer p { margin: 0; }
   .skeleton-card { grid-template-rows: 430px auto; }
   .skeleton-content { min-height: 300px; padding: 40px 20px; border-top: 1px solid var(--rule); border-left: 0; }
   footer { flex-direction: column; gap: 14px; line-height: 1.6; }
+  .members-grid { grid-template-columns: repeat(2, 1fr); }
+  .members-grid article:not(:nth-child(3n+1)) { padding-left: 0; border-left: 0; }
+  .members-grid article:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--rule); }
+  .albums-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 480px) {

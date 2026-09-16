@@ -38,7 +38,8 @@ def transform_theaudiodb_artist(raw_data: Any) -> NormalizedArtist:
         country=_optional_text(artist.get("strCountry")),
         genre=_optional_text(artist.get("strGenre")),
         formed_year=_optional_text(artist.get("intFormedYear")),
-        biography=_optional_text(artist.get("strBiographyEN")),
+        biography=_optional_text(artist.get("strBiographyPT"))
+        or _optional_text(artist.get("strBiographyEN")),
         image_url=_optional_text(artist.get("strArtistThumb")),
     )
 

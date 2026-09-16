@@ -55,6 +55,8 @@ class SaveEnrichedArtistTests(unittest.TestCase):
                     "theaudiodb": "112233",
                     "musicbrainz": "mbid-1",
                 },
+                "members": [],
+                "albums": [],
                 "updated_at": "2026-09-16T15:30:00+00:00",
             }
         )

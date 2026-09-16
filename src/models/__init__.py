@@ -1,6 +1,6 @@
 """Modelos normalizados do domínio musical."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,22 @@ class NormalizedAlbum:
 
 
 @dataclass(frozen=True)
+class ArtistMember:
+    name: str
+    role: str | None = None
+    active: bool | None = None
+
+
+@dataclass(frozen=True)
+class EnrichedAlbum:
+    title: str
+    year: str | None = None
+    album_id: str | None = None
+    musicbrainz_release_group_id: str | None = None
+    cover_url: str | None = None
+
+
+@dataclass(frozen=True)
 class EnrichedArtist:
     """Visão consolidada de um artista, com rastreabilidade das fontes."""
 
@@ -40,3 +56,5 @@ class EnrichedArtist:
     biography: str | None
     image_url: str | None
     source_ids: dict[str, str]
+    members: list[ArtistMember] = field(default_factory=list)
+    albums: list[EnrichedAlbum] = field(default_factory=list)

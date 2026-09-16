@@ -10,7 +10,6 @@ from typing import Any
 
 import requests
 
-
 BASE_URL = "https://musicbrainz.org/ws/2"
 DEFAULT_TIMEOUT_SECONDS = 10
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
@@ -102,7 +101,9 @@ def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
                 f"Erro HTTP ao consultar o MusicBrainz: {error}"
             ) from error
 
-    if response is None:  # pragma: no cover - o loop só termina após uma resposta válida
+    if (
+        response is None
+    ):  # pragma: no cover - o loop só termina após uma resposta válida
         raise MusicBrainzError("O MusicBrainz não retornou uma resposta.")
 
     try:
@@ -150,5 +151,18 @@ def get_artist_details(mbid: str) -> dict[str, Any]:
     )
 
     if not isinstance(data.get("id"), str) or not isinstance(data.get("name"), str):
+        raise MusicBrainzError("O MusicBrainz retornou uma estrutura JSON inesperada.")
+    return data
+
+
+def get_release_groups(mbid: str) -> dict[str, Any]:
+    """Lista grupos de lançamentos do artista em uma única requisição."""
+    if not isinstance(mbid, str) or not mbid.strip():
+        raise ValueError("O MBID do artista não pode estar vazio.")
+    data = _get_json(
+        f"{BASE_URL}/release-group/",
+        params={"artist": mbid.strip(), "type": "album", "limit": "100", "fmt": "json"},
+    )
+    if not isinstance(data.get("release-groups"), list):
         raise MusicBrainzError("O MusicBrainz retornou uma estrutura JSON inesperada.")
     return data

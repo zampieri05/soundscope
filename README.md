@@ -675,3 +675,30 @@ persiste `EnrichedArtist` no S3 antes de atualizar a tabela DynamoDB externa.
 Nenhum recurso AWS é criado pelo projeto. O handler e o empacotamento da Lambda
 estão prontos, mas a integração Spotify e as evoluções de observabilidade
 continuam para fases futuras; a API Gateway pública e a primeira versão do frontend estão disponíveis.
+
+## Artist Profile enriquecido
+
+O pipeline entrega agora um dossiê completo e retrocompatível, incluindo biografia,
+integrantes e até 20 álbuns em ordem cronológica (ano, identificadores e capa):
+
+```text
+TheAudioDB + MusicBrainz
+          ↓
+      Normalization
+          ↓
+    Enriched Artist
+          ↓
+    S3 + DynamoDB
+          ↓
+ Lambda / API Gateway
+          ↓
+ SoundScope frontend
+```
+
+O TheAudioDB é a fonte prioritária de biografia (português, com fallback para
+inglês), gênero, imagem, IDs e catálogo/capas. O MusicBrainz fornece país, período,
+relações de integrantes e release groups complementares. Capas complementares são
+endereçadas pelo Cover Art Archive através do ID do release group. Dados não
+informados permanecem `null` ou listas vazias; nenhum conteúdo biográfico é gerado.
+Relações e catálogos dependem da cobertura editorial das APIs e uma URL do Cover Art
+Archive pode não possuir imagem, situação em que o frontend usa seu placeholder.
