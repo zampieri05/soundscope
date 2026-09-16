@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase 8 — orquestração da ingestão.
+> **Status:** Fase atual: 9 — transformação e camada processed.
 
 ## Objetivo
 
@@ -140,8 +140,8 @@ from src.storage import save_raw_json
 key = save_raw_json("theaudiodb", raw_document, "artists", "123")
 ```
 
-A camada processada e os bancos de consulta continuam reservados para fases
-posteriores.
+Os documentos normalizados de artistas do novo fluxo completo também são
+mantidos no mesmo bucket, sob o prefixo `processed/` descrito na Fase 9.
 
 ### Fase 8 — Orquestração da ingestão
 
@@ -160,23 +160,61 @@ chave criada no S3.
 Essa camada apenas coordena componentes existentes. Ela não transforma, não
 enriquece e não modifica o documento RAW antes da persistência.
 
+### Fase 9 — Transformação e camada processed
+
+O novo `process_theaudiodb_artist()` coordena o caminho completo sem mudar o
+comportamento de `ingest_theaudiodb_artist()`:
+
+```text
+TheAudioDB → RAW → S3 raw/ → Transform → NormalizedArtist → S3 processed/
+```
+
+Primeiro, o JSON original é salvo em `raw/`; somente depois o mesmo objeto é
+entregue a `transform_theaudiodb_artist()`. A dataclass `NormalizedArtist`
+resultante é convertida explicitamente em um dicionário e persistida em
+`processed/`. Falhas de cliente, validação, storage ou transformação são
+propagadas ao chamador, em vez de produzir um falso sucesso.
+
+- `raw/` contém a resposta original da fonte externa, adequada para auditoria
+  e reprocessamento;
+- `processed/` contém os dados transformados para o modelo interno do
+  SoundScope, adequados ao consumo consistente por etapas posteriores.
+
+As chaves processadas seguem a convenção histórica:
+
+```text
+processed/artists/<artist_id>/<YYYYMMDDTHHMMSSffffffZ>.json
+```
+
+O timestamp UTC com microssegundos preserva versões anteriores, assim como na
+camada RAW. O bucket continua sendo fornecido por `SOUNDSCOPE_S3_BUCKET`; este
+fluxo não cria recursos AWS.
+
+```python
+from src.pipeline.processing import process_theaudiodb_artist
+
+result = process_theaudiodb_artist("Metallica")
+```
+
 ## RAW x NORMALIZED x ENRICHED
 
 | Camada | Conteúdo | Finalidade |
 | --- | --- | --- |
 | **RAW** | JSON praticamente igual ao recebido de cada API | Auditoria, histórico, comparação e reprocessamento |
-| **NORMALIZED** | Novo objeto de uma única fonte no esquema comum | Entrada consistente e independente para o enrichment |
+| **NORMALIZED / processed** | Novo objeto de uma única fonte no esquema comum | Entrada consistente e independente para etapas posteriores |
 | **ENRICHED** | Novo objeto que combina os dois registros normalizados | Visão complementar do artista com os IDs das fontes |
 
-NORMALIZED não significa enriquecido: cada modelo normalizado continua associado a uma única fonte. ENRICHED é outro objeto, criado sem sobrescrever RAW ou NORMALIZED. A camada PROCESSED e a persistência pertencem a fases posteriores.
+NORMALIZED não significa enriquecido: cada modelo normalizado continua associado a uma única fonte. Na Fase 9, esse modelo pode ser serializado na camada PROCESSED. ENRICHED é outro objeto, criado sem sobrescrever RAW ou NORMALIZED.
 
 Estrutura conceitual desta fase no bucket (o nome real é configurável):
 
 ```text
 soundscope-data/
-└── raw/
-    ├── theaudiodb/
-    └── musicbrainz/
+├── raw/
+│   ├── theaudiodb/
+│   └── musicbrainz/
+└── processed/
+    └── artists/
 ```
 
 Essa separação representa uma forma simples de **Data Lake**: o original não é sobrescrito pelo dado preparado para consumo.
@@ -248,12 +286,12 @@ soundscope/
 ├── src/                  # pacote principal do backend Python
 │   ├── handlers/         # entradas futuras das funções Lambda/API
 │   ├── models/           # modelos de dados normalizados
-│   ├── pipeline/         # transformers por fonte e enrichment puro
+│   ├── pipeline/         # transformers, enrichment e orquestração
 │   ├── services/         # clientes das fontes externas
 │   │   ├── musicbrainz/
 │   │   ├── spotify/
 │   │   └── theaudiodb/   # cliente HTTP e runner manual
-│   ├── storage/          # persistência de documentos RAW no S3
+│   ├── storage/          # persistência de JSON RAW e processed no S3
 │   └── utils/            # utilitários pequenos e compartilhados
 └── tests/                # testes automatizados espelhando o código de src
 ```
@@ -346,13 +384,13 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | `SPOTIFY_CLIENT_SECRET` | segredo do aplicativo Spotify |
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
 | `AWS_REGION` | região opcional usada pela configuração padrão da AWS |
-| `SOUNDSCOPE_S3_BUCKET` | nome do bucket externo usado para documentos RAW |
+| `SOUNDSCOPE_S3_BUCKET` | nome do bucket externo usado para documentos RAW e processed |
 | `DYNAMODB_TABLE_NAME` | tabela de consulta da aplicação |
 
 Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase,
 `THEAUDIODB_API_KEY` é obrigatória para o TheAudioDB;
 `MUSICBRAINZ_USER_AGENT` é opcional porque há um valor público seguro como
-padrão; e `SOUNDSCOPE_S3_BUCKET` é obrigatório somente ao salvar RAW. Não
+padrão; e `SOUNDSCOPE_S3_BUCKET` é obrigatório ao salvar RAW ou processed. Não
 adicione credenciais AWS ao arquivo: o boto3 descobre credenciais pela cadeia
 padrão do SDK.
 
@@ -375,7 +413,7 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
 | Fontes | MusicBrainz | pesquisa e detalhes RAW por MBID implementados |
 | Fonte futura | Spotify | planejada |
-| Data Lake | Amazon S3 | persistência RAW implementada; processed planejado |
+| Data Lake | Amazon S3 | persistência RAW e processed implementada para artistas TheAudioDB |
 | Banco de consulta | Amazon DynamoDB | planejado |
 | Computação e API | Lambda e API Gateway | planejado |
 | Observabilidade | CloudWatch | planejado |
@@ -390,14 +428,15 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 5:** transformação e normalização
 - [x] **Fase 6:** Data Enrichment
 - [x] **Fase 7:** persistência RAW no Amazon S3
-- [ ] **Fase 8:** persistência processada
-- [ ] **Fase 9:** DynamoDB
-- [ ] **Fase 10:** AWS Lambda + API Gateway
-- [ ] **Fase 11:** Spotify OAuth
-- [ ] **Fase 12:** dados pessoais Spotify
-- [ ] **Fase 13:** frontend
-- [ ] **Fase 14:** CloudWatch, logs e tratamento de erros
-- [ ] **Fase 15:** testes e documentação final
+- [x] **Fase 8:** orquestração da ingestão TheAudioDB
+- [x] **Fase 9:** transformação e persistência processada
+- [ ] **Fase 10:** DynamoDB
+- [ ] **Fase 11:** AWS Lambda + API Gateway
+- [ ] **Fase 12:** Spotify OAuth
+- [ ] **Fase 13:** dados pessoais Spotify
+- [ ] **Fase 14:** frontend
+- [ ] **Fase 15:** CloudWatch, logs e tratamento de erros
+- [ ] **Fase 16:** testes e documentação final
 
 Cada fase deve produzir uma mudança pequena, testável e explicável. A prioridade é demonstrar integração de APIs, ingestão, ETL, normalização, deduplicação, enriquecimento, persistência, arquitetura serverless, observabilidade e tratamento de falhas — sem adicionar ferramentas apenas para aumentar a lista de tecnologias.
 
@@ -405,6 +444,7 @@ Cada fase deve produzir uma mudança pequena, testável e explicável. A priorid
 
 As extrações RAW do TheAudioDB e MusicBrainz, a persistência opcional desses
 documentos em um bucket S3 configurado externamente, suas transformações
-independentes e o enriquecimento em memória estão prontos. Nenhum recurso AWS é
-criado pelo projeto. Persistência processada, DynamoDB, Lambda, API Gateway,
-integração Spotify e frontend funcional continuam para fases futuras.
+independentes e o enriquecimento em memória estão prontos. O fluxo TheAudioDB
+também persiste seu `NormalizedArtist` na camada processed. Nenhum recurso AWS é
+criado pelo projeto. DynamoDB, Lambda, API Gateway, integração Spotify e
+frontend funcional continuam para fases futuras.
