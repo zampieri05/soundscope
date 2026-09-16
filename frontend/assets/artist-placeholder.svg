@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" role="img" aria-labelledby="title desc">
+  <title id="title">Imagem de artista indisponível</title><desc id="desc">Ilustração abstrata de ondas sonoras</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#25292d"/><stop offset="1" stop-color="#0f1112"/></linearGradient><radialGradient id="glow"><stop stop-color="#8ba7bd" stop-opacity=".35"/><stop offset="1" stop-color="#8ba7bd" stop-opacity="0"/></radialGradient></defs>
+  <rect width="800" height="900" fill="url(#bg)"/><circle cx="580" cy="230" r="340" fill="url(#glow)"/>
+  <g fill="none"><circle cx="400" cy="450" r="210" stroke="#e8e7e2" stroke-opacity=".08" stroke-width="2"/><circle cx="400" cy="450" r="150" stroke="#e8e7e2" stroke-opacity=".12" stroke-width="2"/><path d="M190 450c65-135 110 135 175 0s110 135 175 0 110 135 175 0" stroke="#9db9cd" stroke-width="12"/><path d="M160 510c70-85 120 85 190 0s120 85 190 0 90 50 120 12" stroke="#e8e7e2" stroke-opacity=".42" stroke-width="4"/></g>
+</svg>
