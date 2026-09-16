@@ -12,6 +12,7 @@ from src.pipeline.transformers import (
 )
 from src.services.musicbrainz import client as musicbrainz_client
 from src.services.theaudiodb import client as theaudiodb_client
+from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 
 
@@ -88,6 +89,7 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     processed_key = save_processed_json(
         asdict(enriched), "artists", theaudiodb_id, data_type="enriched"
     )
+    save_enriched_artist(enriched)
 
     return {
         "artist_name": artist_name,

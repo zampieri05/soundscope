@@ -2,7 +2,7 @@
 
 SoundScope é uma plataforma web de dados musicais em construção. O projeto reunirá dados públicos de artistas vindos do **Spotify**, **TheAudioDB** e **MusicBrainz** e apresentará uma visão única, organizada e rastreável dessas informações.
 
-> **Status:** Fase atual: 10 — Multi-source Data Enrichment.
+> **Status:** Fase atual: 11 — Persistência do artista enriquecido no DynamoDB.
 
 ## Objetivo
 
@@ -33,6 +33,8 @@ flowchart TD
     R --> T[Transform com Python]
     T --> N[Dados NORMALIZED]
     N --> EN[Dados ENRICHED]
+    EN --> P[(Amazon S3 / processed/enriched)]
+    P --> D[(Amazon DynamoDB)]
 ```
 
 Em termos simples:
@@ -41,6 +43,8 @@ Em termos simples:
 Fontes externas -> Extração -> RAW -----> Amazon S3
                               `--------> Transformação -> NORMALIZED
                                                         -> Enrichment -> ENRICHED
+                                                        -> S3 processed/enriched
+                                                        -> DynamoDB
 ```
 
 ### Extract (extração)
@@ -236,6 +240,34 @@ from src.pipeline.processing import process_enriched_artist
 result = process_enriched_artist("Metallica")
 ```
 
+### Fase 11 — Persistência do artista enriquecido no DynamoDB
+
+Depois que o documento enriquecido foi salvo com sucesso em
+`processed/enriched/` no S3, `process_enriched_artist()` grava a mesma visão
+para consulta na tabela DynamoDB já existente. A ordem é deliberada:
+
+```text
+APIs → RAW S3 → Transform → Enrichment → processed/enriched S3 → DynamoDB
+```
+
+`save_enriched_artist()` usa o ID do TheAudioDB presente em `source_ids` como
+partition key `artist-id`. O item inclui nome, atributos enriquecidos,
+`source_ids` e `updated_at`; atributos opcionais com valor `None` são omitidos.
+O mapa `source_ids` permanece nativo e consultável no DynamoDB.
+
+A tabela não é criada pelo código. Seu nome vem de
+`SOUNDSCOPE_DYNAMODB_TABLE` (por exemplo, `soundscope-artists`), e o boto3 usa a
+cadeia padrão de credenciais e região. Uma falha do DynamoDB é reportada como
+`DynamoDBStorageError`, preservando a exceção original; o pipeline não retorna
+sucesso silenciosamente. Da mesma forma, nenhuma tentativa de gravação no
+DynamoDB ocorre se uma etapa anterior, inclusive o S3 processed, falhar.
+
+```python
+from src.storage import save_enriched_artist
+
+save_enriched_artist(enriched)
+```
+
 ## RAW x NORMALIZED x ENRICHED
 
 | Camada | Conteúdo | Finalidade |
@@ -297,7 +329,7 @@ Logs e métricas das funções -> Amazon CloudWatch
 - **AWS Lambda:** executa extrações, transformações e handlers Python sem manter servidores. É adequada a cargas pequenas e orientadas a eventos.
 - **Amazon API Gateway:** expõe rotas HTTP e encaminha cada chamada ao handler responsável, separando a interface pública da execução.
 - **Amazon S3:** oferece armazenamento durável e econômico para JSON RAW e arquivos processados, preservando o histórico do pipeline.
-- **Amazon DynamoDB:** fornece consultas rápidas para a aplicação sem administrar um banco relacional. O modelo será definido apenas quando os padrões de acesso estiverem claros.
+- **Amazon DynamoDB:** armazena a visão enriquecida por `artist-id` para consultas rápidas, sem administrar um banco relacional.
 - **Amazon CloudWatch:** centralizará logs, métricas e alertas básicos para investigar falhas de APIs e execuções Lambda.
 
 A proposta é **serverless** e intencionalmente pequena. EC2, ECS, Kubernetes, RDS, Redshift, Kafka, Airflow e AWS Glue não serão adicionados ao MVP sem uma necessidade real.
@@ -333,7 +365,7 @@ soundscope/
 │   │   ├── musicbrainz/
 │   │   ├── spotify/
 │   │   └── theaudiodb/   # cliente HTTP e runner manual
-│   ├── storage/          # persistência de JSON RAW e processed no S3
+│   ├── storage/          # persistência no S3 e no DynamoDB
 │   └── utils/            # utilitários pequenos e compartilhados
 └── tests/                # testes automatizados espelhando o código de src
 ```
@@ -427,12 +459,13 @@ O arquivo `.env.example` documenta apenas os nomes esperados:
 | `SPOTIFY_REDIRECT_URI` | retorno do fluxo OAuth |
 | `AWS_REGION` | região opcional usada pela configuração padrão da AWS |
 | `SOUNDSCOPE_S3_BUCKET` | nome do bucket externo usado para documentos RAW e processed |
-| `DYNAMODB_TABLE_NAME` | tabela de consulta da aplicação |
+| `SOUNDSCOPE_DYNAMODB_TABLE` | nome da tabela externa que recebe o artista enriquecido |
 
 Copie o exemplo para `.env` e preencha-o apenas em sua máquina. Nesta fase,
 `THEAUDIODB_API_KEY` é obrigatória para o TheAudioDB;
 `MUSICBRAINZ_USER_AGENT` é opcional porque há um valor público seguro como
-padrão; e `SOUNDSCOPE_S3_BUCKET` é obrigatório ao salvar RAW ou processed. Não
+padrão; `SOUNDSCOPE_S3_BUCKET` é obrigatório ao salvar RAW ou processed; e
+`SOUNDSCOPE_DYNAMODB_TABLE` é obrigatório no fluxo enriquecido. Não
 adicione credenciais AWS ao arquivo: o boto3 descobre credenciais pela cadeia
 padrão do SDK.
 
@@ -455,8 +488,8 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 | Fontes | TheAudioDB | pesquisa de artista e álbuns implementada |
 | Fontes | MusicBrainz | pesquisa e detalhes RAW por MBID implementados |
 | Fonte futura | Spotify | planejada |
-| Data Lake | Amazon S3 | persistência RAW e processed implementada para artistas TheAudioDB |
-| Banco de consulta | Amazon DynamoDB | planejado |
+| Data Lake | Amazon S3 | persistência RAW, processed e enriched implementada |
+| Banco de consulta | Amazon DynamoDB | persistência de artistas enriquecidos implementada |
 | Computação e API | Lambda e API Gateway | planejado |
 | Observabilidade | CloudWatch | planejado |
 | Frontend | a definir quando a interface começar | estrutura reservada |
@@ -472,13 +505,14 @@ Se um segredo for versionado por engano, removê-lo do arquivo não basta: ele d
 - [x] **Fase 7:** persistência RAW no Amazon S3
 - [x] **Fase 8:** orquestração da ingestão TheAudioDB
 - [x] **Fase 9:** transformação e persistência processada
-- [ ] **Fase 10:** DynamoDB
-- [ ] **Fase 11:** AWS Lambda + API Gateway
-- [ ] **Fase 12:** Spotify OAuth
-- [ ] **Fase 13:** dados pessoais Spotify
-- [ ] **Fase 14:** frontend
-- [ ] **Fase 15:** CloudWatch, logs e tratamento de erros
-- [ ] **Fase 16:** testes e documentação final
+- [x] **Fase 10:** Multi-source Data Enrichment
+- [x] **Fase 11:** persistência do artista enriquecido no DynamoDB
+- [ ] **Fase 12:** AWS Lambda + API Gateway
+- [ ] **Fase 13:** Spotify OAuth
+- [ ] **Fase 14:** dados pessoais Spotify
+- [ ] **Fase 15:** frontend
+- [ ] **Fase 16:** CloudWatch, logs e tratamento de erros
+- [ ] **Fase 17:** testes e documentação final
 
 Cada fase deve produzir uma mudança pequena, testável e explicável. A prioridade é demonstrar integração de APIs, ingestão, ETL, normalização, deduplicação, enriquecimento, persistência, arquitetura serverless, observabilidade e tratamento de falhas — sem adicionar ferramentas apenas para aumentar a lista de tecnologias.
 
@@ -486,7 +520,8 @@ Cada fase deve produzir uma mudança pequena, testável e explicável. A priorid
 
 As extrações RAW do TheAudioDB e MusicBrainz, a persistência opcional desses
 documentos em um bucket S3 configurado externamente, suas transformações
-independentes e o enriquecimento em memória estão prontos. O fluxo TheAudioDB
-também persiste seu `NormalizedArtist` na camada processed. Nenhum recurso AWS é
-criado pelo projeto. DynamoDB, Lambda, API Gateway, integração Spotify e
-frontend funcional continuam para fases futuras.
+independentes e o enriquecimento estão prontos. O fluxo TheAudioDB também
+persiste seu `NormalizedArtist` na camada processed, e o fluxo multi-source
+persiste `EnrichedArtist` no S3 antes de atualizar a tabela DynamoDB externa.
+Nenhum recurso AWS é criado pelo projeto. Lambda, API Gateway, integração
+Spotify e frontend funcional continuam para fases futuras.
