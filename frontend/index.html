@@ -15,6 +15,7 @@
   <script src="js/spotify-insights.js" defer></script>
   <script src="js/spotify-history.js" defer></script>
   <script src="js/spotify-orbit.js" defer></script>
+  <script src="js/orbit-share.js" defer></script>
   <script src="js/discography.js" defer></script>
   <script src="js/story-mode.js" defer></script>
   <script src="js/app.js" defer></script>
@@ -147,6 +148,7 @@
           <div class="orbit-stage" data-orbit-stage><div class="orbit-center" aria-hidden="true"><small>Meu</small><strong>Sound<br>Scope</strong></div></div>
           <aside class="orbit-panel" data-orbit-panel aria-live="polite"></aside>
         </div>
+        <button class="orbit-share-trigger" id="orbit-share-open" type="button" aria-haspopup="dialog" aria-controls="orbit-share">Compartilhar minha órbita <span aria-hidden="true">↗</span></button>
         <p class="orbit-note">As linhas indicam apenas que estes artistas pertencem à sua órbita. A dimensão reflete a posição no ranking do período, não quantidade de audições.</p>
       </section>
       <section class="insights-section" aria-labelledby="top-artists-title"><div class="insights-heading"><p>01 / Afinidades</p><h3 id="top-artists-title">Artistas mais ouvidos</h3></div><div class="ranking" id="top-artists"></div></section>
@@ -158,6 +160,25 @@
       </section>
     </section>
   </main>
+  <section class="orbit-share is-hidden" id="orbit-share" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="orbit-share-title" aria-describedby="orbit-share-description">
+    <div class="orbit-share__backdrop" data-share-close></div>
+    <div class="orbit-share__dialog">
+      <header class="orbit-share__header">
+        <div><p>SoundScope Share V1</p><h2 id="orbit-share-title">Sua órbita, pronta para compartilhar.</h2></div>
+        <button class="orbit-share__close" type="button" data-share-close aria-label="Fechar preview">Fechar <span aria-hidden="true">×</span></button>
+      </header>
+      <div class="orbit-share__content">
+        <div class="orbit-share__preview"><canvas width="1080" height="1920" data-share-canvas aria-label="Preview vertical da Minha Órbita"></canvas></div>
+        <aside class="orbit-share__controls">
+          <p id="orbit-share-description">A imagem é criada neste navegador com os artistas já carregados. Nenhum dado é enviado ao SoundScope.</p>
+          <button type="button" data-share-generate>Gerar Story <span aria-hidden="true">→</span></button>
+          <button type="button" data-share-download disabled>Baixar PNG <span aria-hidden="true">↓</span></button>
+          <button type="button" data-share-share disabled>Compartilhar <span aria-hidden="true">↗</span></button>
+          <p class="orbit-share__status" data-share-status role="status" aria-live="polite"></p>
+        </aside>
+      </div>
+    </div>
+  </section>
   <footer class="site-footer"><a class="brand" href="#inicio">SoundScope</a><p>Música, dados e histórias em uma só frequência.</p><span>© 2026</span></footer>
 </body>
 </html>
