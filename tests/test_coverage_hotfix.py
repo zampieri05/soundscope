@@ -1,4 +1,5 @@
 """Regression tests for resilient search and complete MusicBrainz catalog."""
+import json
 import unittest
 from unittest.mock import patch, call
 
@@ -7,6 +8,8 @@ from src.pipeline.enrichment.artist import _merge_albums
 from src.pipeline.processing.enriched import _select_musicbrainz_artist
 from src.pipeline.transformers.musicbrainz import transform_musicbrainz_albums
 from src.services.musicbrainz.client import ArtistNotFoundError, get_release_groups
+from src.services.theaudiodb.client import AlbumsNotFoundError
+from src.storage.dynamodb import DynamoDBStorageError
 
 
 class CandidateSelectionTests(unittest.TestCase):
@@ -144,3 +147,79 @@ class ResilientPipelineTests(unittest.TestCase):
         ta = NormalizedArtist("theaudiodb", "ta", "Same", country="BR")
         mb = NormalizedArtist("musicbrainz", "mb", "Same", country="US")
         self.assertFalse(_same_identity(ta, mb, {"name": "Same", "score": 100}, {"name": "Same"}))
+
+    def test_rejected_theaudiodb_candidate_returns_musicbrainz_only_without_legacy_write(self):
+        """Regressão: um candidato buscado não equivale a uma fonte aceita."""
+        from src.handlers.artist import lambda_handler
+        from src.pipeline.processing.enriched import process_enriched_artist
+
+        tadb_raw = {"artists": [{
+            "idArtist": "tadb-linkin-park",
+            "strArtist": "Linkin Park",
+            "strCountry": "GB",
+        }]}
+        mb_search = {"artists": [{
+            "id": "mb-linkin-park",
+            "name": "Linkin Park",
+            "score": 100,
+            "type": "Group",
+        }]}
+        mb_details = {"id": "mb-linkin-park", "name": "Linkin Park", "country": "US"}
+        invalid_legacy_write = DynamoDBStorageError(
+            "source_ids deve conter um ID do TheAudioDB não vazio."
+        )
+
+        patches = (
+            patch(
+                "src.pipeline.processing.enriched.theaudiodb_client.search_artist",
+                return_value=tadb_raw,
+            ),
+            patch(
+                "src.pipeline.processing.enriched.theaudiodb_client.search_albums",
+                side_effect=AlbumsNotFoundError("none"),
+            ),
+            patch(
+                "src.pipeline.processing.enriched.musicbrainz_client.search_artist",
+                return_value=mb_search,
+            ),
+            patch(
+                "src.pipeline.processing.enriched.musicbrainz_client.get_artist_details",
+                return_value=mb_details,
+            ),
+            patch(
+                "src.pipeline.processing.enriched.musicbrainz_client.get_release_groups",
+                return_value={"release-groups": []},
+            ),
+            patch("src.pipeline.processing.enriched.save_raw_json", return_value="raw"),
+            patch(
+                "src.pipeline.processing.enriched.save_processed_json",
+                return_value="processed",
+            ),
+            patch(
+                "src.pipeline.processing.enriched.save_enriched_artist",
+                side_effect=invalid_legacy_write,
+            ),
+            patch(
+                "src.handlers.artist.process_enriched_artist",
+                side_effect=process_enriched_artist,
+            ),
+        )
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             patches[5], patches[6] as processed, patches[7] as dynamo, patches[8]:
+            response = lambda_handler(
+                {"pathParameters": {"artist_name": "Linkin Park"}}, None
+            )
+
+        self.assertEqual(response["statusCode"], 200)
+        body = json.loads(response["body"])
+        self.assertEqual(
+            body["artist"]["source_ids"], {"musicbrainz": "mb-linkin-park"}
+        )
+        self.assertEqual(
+            body["metadata"]["sources"],
+            {"theaudiodb": False, "musicbrainz": True},
+        )
+        self.assertIsNone(body["metadata"]["theaudiodb_artist_id"])
+        processed.assert_called_once()
+        self.assertEqual(processed.call_args.args[2], "mb-linkin-park")
+        dynamo.assert_not_called()

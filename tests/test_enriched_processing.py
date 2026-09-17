@@ -6,6 +6,7 @@ from unittest.mock import Mock, call, patch
 from src.models import EnrichedArtist, NormalizedArtist
 from src.pipeline.processing import process_enriched_artist
 from src.services.musicbrainz.client import ArtistNotFoundError, MusicBrainzError
+from src.storage.dynamodb import DynamoDBStorageError
 
 
 MODULE = "src.pipeline.processing.enriched"
@@ -117,6 +118,18 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
         mocks["musicbrainz_client"].get_artist_details.return_value = {
             "id": "chosen", "name": "Metallica"
         }
+        mocks["transform_musicbrainz_artist"].return_value = NormalizedArtist(
+            "musicbrainz", "chosen", "Metallica", country="US"
+        )
+        mocks["enrich_artist"].return_value = EnrichedArtist(
+            name="Metallica",
+            country="US",
+            genre="Metal",
+            formed_year=None,
+            biography=None,
+            image_url=None,
+            source_ids={"theaudiodb": "111279", "musicbrainz": "chosen"},
+        )
         with patch.multiple(MODULE, **mocks):
             result = process_enriched_artist("Metallica")
         self.assertEqual(result["musicbrainz_mbid"], "chosen")
@@ -206,10 +219,10 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
 
     def test_dynamodb_failure_is_propagated(self):
         mocks = self._mocks()
-        failure = RuntimeError("DynamoDB indisponível")
+        failure = DynamoDBStorageError("DynamoDB indisponível")
         mocks["save_enriched_artist"].side_effect = failure
         with patch.multiple(MODULE, **mocks), self.assertRaises(
-            RuntimeError
+            DynamoDBStorageError
         ) as raised:
             process_enriched_artist("Metallica")
         self.assertIs(raised.exception, failure)
