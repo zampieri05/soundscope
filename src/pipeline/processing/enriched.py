@@ -21,6 +21,7 @@ from src.services.theaudiodb import client as theaudiodb_client
 from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
+from src.utils.telemetry import increment, measure
 
 
 logger = logging.getLogger(__name__)
@@ -67,16 +68,16 @@ def _select_musicbrainz_artist(search_raw: Any, query: str) -> dict[str, Any]:
             if wanted not in _candidate_names(candidate):
                 logger.info(
                     "MusicBrainz candidate rejected reason=name_mismatch "
-                    "query=%r candidate_mbid=%r",
-                    query, candidate.get("id"),
+                    "candidate_mbid=%r",
+                    candidate.get("id"),
                 )
                 continue
             score = candidate.get("score")
             if score is not None and (not isinstance(score, int) or score < 80):
                 logger.info(
                     "MusicBrainz candidate rejected reason=score_too_low "
-                    "query=%r candidate_mbid=%r score=%r",
-                    query, candidate.get("id"), score,
+                    "candidate_mbid=%r score=%r",
+                    candidate.get("id"), score,
                 )
                 continue
             if isinstance(candidate.get("id"), str) and candidate["id"].strip():
@@ -213,67 +214,92 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     extended_catalog = isinstance(getattr(theaudiodb_client, "AlbumsNotFoundError", None), type)
 
     try:
-        raw = theaudiodb_client.search_artist(artist_name)
+        with measure("theaudiodb.artist_ms"):
+            raw = theaudiodb_client.search_artist(artist_name)
         tadb_id = _first_artist_id(raw)
-        tadb_key = save_raw_json("theaudiodb", raw, "artists", tadb_id)
-        tadb_artist = transform_theaudiodb_artist(raw)
+        with measure("s3.raw_ms"):
+            tadb_key = save_raw_json("theaudiodb", raw, "artists", tadb_id)
+        increment("s3.raw_writes")
+        with measure("theaudiodb.transform_artist_ms"), measure("transform_ms"):
+            tadb_artist = transform_theaudiodb_artist(raw)
         try:
             if not extended_catalog:
                 raise AlbumsNotFoundError("Catálogo indisponível neste caller legado.")
-            albums_raw = theaudiodb_client.search_albums(tadb_id)
-            save_raw_json("theaudiodb", albums_raw, "albums", tadb_id)
-            tadb_albums = transform_theaudiodb_albums(albums_raw)
+            with measure("theaudiodb.albums_ms"):
+                albums_raw = theaudiodb_client.search_albums(tadb_id)
+            with measure("s3.raw_ms"):
+                save_raw_json("theaudiodb", albums_raw, "albums", tadb_id)
+            increment("s3.raw_writes")
+            with measure("theaudiodb.transform_albums_ms"), measure("transform_ms"):
+                tadb_albums = transform_theaudiodb_albums(albums_raw)
         except AlbumsNotFoundError:
             pass
     except (TheAudioDBError, UsableArtistNotFoundError) as error:
         failures.append(error)
         logger.info(
-            "TheAudioDB source unavailable artist=%r outcome=%s",
-            artist_name, type(error).__name__,
+            "TheAudioDB source unavailable outcome=%s",
+            type(error).__name__,
         )
 
     try:
-        search_raw = musicbrainz_client.search_artist(artist_name)
+        with measure("musicbrainz.search_ms"):
+            search_raw = musicbrainz_client.search_artist(artist_name)
         mb_match = _select_musicbrainz_artist(search_raw, artist_name)
         mbid = _musicbrainz_id(mb_match)
-        save_raw_json("musicbrainz", search_raw, "artists", mbid)
-        mb_details = musicbrainz_client.get_artist_details(mbid)
-        mb_key = save_raw_json("musicbrainz", mb_details, "artists", mbid)
-        mb_artist = transform_musicbrainz_artist(mb_details)
-        members = transform_musicbrainz_members(mb_details)
+        with measure("s3.raw_ms"):
+            save_raw_json("musicbrainz", search_raw, "artists", mbid)
+        increment("s3.raw_writes")
+        with measure("musicbrainz.artist_ms"):
+            mb_details = musicbrainz_client.get_artist_details(mbid)
+        with measure("s3.raw_ms"):
+            mb_key = save_raw_json("musicbrainz", mb_details, "artists", mbid)
+        increment("s3.raw_writes")
+        with measure("transform_ms"):
+            mb_artist = transform_musicbrainz_artist(mb_details)
+            members = transform_musicbrainz_members(mb_details)
         if extended_catalog:
             try:
-                release_raw = musicbrainz_client.get_release_groups(mbid)
-                save_raw_json("musicbrainz", release_raw, "release-groups", mbid)
-                mb_albums = transform_musicbrainz_albums(release_raw)
+                with measure("musicbrainz.release_groups_ms"):
+                    release_raw = musicbrainz_client.get_release_groups(mbid)
+                with measure("s3.raw_ms"):
+                    save_raw_json("musicbrainz", release_raw, "release-groups", mbid)
+                increment("s3.raw_writes")
+                with measure("transform_ms"):
+                    mb_albums = transform_musicbrainz_albums(release_raw)
             except MusicBrainzError as error:
                 # get_release_groups only returns a fully collected snapshot. If
                 # any page fails, discard it rather than presenting a partial
                 # MusicBrainz catalog as complete.
                 logger.warning(
                     "MusicBrainz release groups unavailable; discarding catalog "
-                    "artist=%r mbid=%s error_type=%s",
-                    artist_name, mbid, type(error).__name__,
+                    "mbid=%s error_type=%s",
+                    mbid, type(error).__name__,
                 )
     except MusicBrainzError as error:
         failures.append(error)
         logger.info(
-            "MusicBrainz source unavailable; considering fallback artist=%r "
+            "MusicBrainz source unavailable; considering fallback "
             "mbid=%s outcome=%s",
-            artist_name, mbid, type(error).__name__,
+            mbid, type(error).__name__,
         )
 
-    if tadb_artist and mb_artist and _same_identity(tadb_artist, mb_artist, mb_match, mb_details):
-        enriched = (enrich_artist(tadb_artist, mb_artist, tadb_albums, mb_albums, members)
-                    if extended_catalog else enrich_artist(tadb_artist, mb_artist))
-    elif mb_artist:
-        if not tadb_artist:
-            logger.info("Using MusicBrainz fallback artist=%r mbid=%s", artist_name, mbid)
-        enriched = partial_artist(mb_artist, mb_albums, members)
-    elif tadb_artist:
-        logger.info("Using TheAudioDB fallback artist=%r artist_id=%s", artist_name, tadb_id)
-        enriched = partial_artist(tadb_artist, tadb_albums)
-    else:
+    with measure("identity_ms"):
+        same_identity = bool(tadb_artist and mb_artist and
+                             _same_identity(tadb_artist, mb_artist, mb_match, mb_details))
+    with measure("enrichment_ms"):
+        if same_identity:
+            enriched = (enrich_artist(tadb_artist, mb_artist, tadb_albums, mb_albums, members)
+                        if extended_catalog else enrich_artist(tadb_artist, mb_artist))
+        elif mb_artist:
+            if not tadb_artist:
+                logger.info("Using MusicBrainz fallback mbid=%s", mbid)
+            enriched = partial_artist(mb_artist, mb_albums, members)
+        elif tadb_artist:
+            logger.info("Using TheAudioDB fallback artist_id=%s", tadb_id)
+            enriched = partial_artist(tadb_artist, tadb_albums)
+        else:
+            enriched = None
+    if enriched is None:
         not_found_types = (theaudiodb_client.ArtistNotFoundError,
                            ArtistNotFoundError,
                            UsableArtistNotFoundError)
@@ -282,9 +308,7 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         ]
         if upstream_failures:
             logger.error(
-                "All artist sources unusable after upstream failure artist=%r "
-                "failure_types=%s",
-                artist_name,
+                "All artist sources unusable after upstream failure failure_types=%s",
                 ",".join(type(error).__name__ for error in upstream_failures),
             )
             raise upstream_failures[-1]
@@ -305,12 +329,16 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     has_tadb_id = isinstance(profile_tadb_id, str) and bool(profile_tadb_id.strip())
     has_mb_id = isinstance(profile_mb_id, str) and bool(profile_mb_id.strip())
     storage_id = profile_tadb_id if has_tadb_id else profile_mb_id
-    processed_key = save_processed_json(
-        serialized, "artists", storage_id, data_type="enriched"
-    )
+    with measure("s3.processed_ms"):
+        processed_key = save_processed_json(
+            serialized, "artists", storage_id, data_type="enriched"
+        )
+    increment("s3.processed_writes")
     # A tabela atual exige artist-id do TheAudioDB; não se força migração no hotfix.
     if has_tadb_id:
-        save_enriched_artist(enriched)
+        with measure("dynamodb_ms"):
+            save_enriched_artist(enriched)
+        increment("dynamodb_writes")
     sources = {"theaudiodb": has_tadb_id, "musicbrainz": has_mb_id}
     return {"artist": enriched, "artist_name": artist_name,
             "theaudiodb_artist_id": profile_tadb_id if has_tadb_id else None,

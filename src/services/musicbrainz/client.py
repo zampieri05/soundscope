@@ -10,6 +10,7 @@ from math import isfinite
 from typing import Any
 
 import requests
+from src.utils.telemetry import current_metrics, increment, measure
 
 BASE_URL = "https://musicbrainz.org/ws/2"
 DEFAULT_TIMEOUT_SECONDS = 10
@@ -41,7 +42,11 @@ def _wait_for_rate_limit() -> None:
     with _rate_limit_lock:
         elapsed = time.monotonic() - _last_request_started_at
         if elapsed < MIN_REQUEST_INTERVAL_SECONDS:
+            metrics = current_metrics()
+            started = metrics.clock() if metrics is not None else time.perf_counter()
             time.sleep(MIN_REQUEST_INTERVAL_SECONDS - elapsed)
+            if metrics is not None:
+                metrics.add_duration("musicbrainz.rate_limit_wait_ms", started)
         _last_request_started_at = time.monotonic()
 
 
@@ -75,36 +80,40 @@ def _get_json(
 
     response: requests.Response | None = None
     for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
+        increment("musicbrainz.attempts")
         _wait_for_rate_limit()
         logger.info(
-            "MusicBrainz request operation=%s subject=%s attempt=%d/%d",
-            operation, subject, attempt, MAX_REQUEST_ATTEMPTS,
+            "MusicBrainz request operation=%s attempt=%d/%d",
+            operation, attempt, MAX_REQUEST_ATTEMPTS,
         )
         response = None
         try:
-            response = requests.get(
-                url,
-                params=params,
-                headers={"User-Agent": user_agent, "Accept": "application/json"},
-                timeout=DEFAULT_TIMEOUT_SECONDS,
-            )
+            increment("musicbrainz.requests")
+            with measure("musicbrainz.http_ms"):
+                response = requests.get(
+                    url, params=params,
+                    headers={"User-Agent": user_agent, "Accept": "application/json"},
+                    timeout=DEFAULT_TIMEOUT_SECONDS,
+                )
             response.raise_for_status()
             break
         except requests.Timeout as error:
             if attempt < MAX_REQUEST_ATTEMPTS:
                 delay = min(float(2 ** (attempt - 1)), MAX_RETRY_DELAY_SECONDS)
                 logger.warning(
-                    "MusicBrainz timeout; retrying operation=%s subject=%s "
+                    "MusicBrainz timeout; retrying operation=%s "
                     "attempt=%d/%d delay=%.1fs error_type=%s",
-                    operation, subject, attempt, MAX_REQUEST_ATTEMPTS, delay,
+                    operation, attempt, MAX_REQUEST_ATTEMPTS, delay,
                     type(error).__name__,
                 )
-                time.sleep(delay)
+                increment("musicbrainz.retries")
+                with measure("musicbrainz.retry_wait_ms"):
+                    time.sleep(delay)
                 continue
             logger.error(
-                "MusicBrainz timeout exhausted operation=%s subject=%s attempts=%d "
+                "MusicBrainz timeout exhausted operation=%s attempts=%d "
                 "error_type=%s",
-                operation, subject, MAX_REQUEST_ATTEMPTS, type(error).__name__,
+                operation, MAX_REQUEST_ATTEMPTS, type(error).__name__,
             )
             raise MusicBrainzError(
                 "A requisição ao MusicBrainz excedeu o tempo limite."
@@ -119,16 +128,18 @@ def _get_json(
                 delay = _retry_delay(error_response, attempt)
                 logger.warning(
                     "MusicBrainz transient HTTP status; retrying operation=%s "
-                    "subject=%s status=%s attempt=%d/%d delay=%.1fs",
-                    operation, subject, status_code, attempt,
+                    "status=%s attempt=%d/%d delay=%.1fs",
+                    operation, status_code, attempt,
                     MAX_REQUEST_ATTEMPTS, delay,
                 )
-                time.sleep(delay)
+                increment("musicbrainz.retries")
+                with measure("musicbrainz.retry_wait_ms"):
+                    time.sleep(delay)
                 continue
             logger.error(
-                "MusicBrainz HTTP failure operation=%s subject=%s status=%s "
+                "MusicBrainz HTTP failure operation=%s status=%s "
                 "attempt=%d/%d transient=%s",
-                operation, subject, status_code, attempt, MAX_REQUEST_ATTEMPTS,
+                operation, status_code, attempt, MAX_REQUEST_ATTEMPTS,
                 status_code in TRANSIENT_HTTP_STATUS_CODES,
             )
             raise MusicBrainzError(
@@ -220,6 +231,7 @@ def get_release_groups(mbid: str) -> dict[str, Any]:
             operation="release_groups",
             subject=artist_mbid,
         )
+        increment("musicbrainz.pages")
         page = data.get("release-groups")
         if not isinstance(page, list):
             raise MusicBrainzError("O MusicBrainz retornou uma estrutura JSON inesperada.")

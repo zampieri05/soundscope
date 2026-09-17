@@ -18,9 +18,11 @@ from src.services.theaudiodb.client import (
     ArtistNotFoundError as TheAudioDBArtistNotFoundError,
     TheAudioDBError,
 )
+from src.utils.telemetry import InvocationMetrics, activate, deactivate
 
 
 logger = logging.getLogger(__name__)
+_cold_start = True
 
 _HEADERS = {
     "Content-Type": "application/json",
@@ -59,30 +61,48 @@ def _success_body(result: EnrichedArtistProcessingResult) -> dict[str, Any]:
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Run the enriched-artist pipeline for an API Gateway path parameter."""
-    del context  # Reserved for future request metadata and tracing.
-
-    path_parameters = event.get("pathParameters") if isinstance(event, dict) else None
-    artist_name = (
-        path_parameters.get("artist_name")
-        if isinstance(path_parameters, dict)
-        else None
-    )
-    if not isinstance(artist_name, str) or not artist_name.strip():
-        return _response(400, {"error": "artist_name is required"})
-
-    artist_name = artist_name.strip()
+    global _cold_start
+    cold_start, _cold_start = _cold_start, False
+    metrics = InvocationMetrics()
+    token = activate(metrics)
+    pipeline_started = metrics.clock()
+    request_id = getattr(context, "aws_request_id", None)
+    outcome = "error"
+    sources = {"theaudiodb": False, "musicbrainz": False}
     try:
-        result = process_enriched_artist(artist_name)
-        return _response(200, _success_body(result))
-    except _NOT_FOUND_ERRORS:
-        logger.info("Artist not found: %s", artist_name)
-        return _response(404, {"error": "artist not found"})
-    except (MusicBrainzError, TheAudioDBError) as error:
-        logger.error(
-            "Upstream unavailable while processing artist=%r error_type=%s",
-            artist_name, type(error).__name__,
-        )
-        return _response(502, {"error": "upstream service unavailable"})
-    except Exception:
-        logger.exception("Unexpected error while processing artist %r", artist_name)
-        return _response(500, {"error": "internal server error"})
+        with metrics.measure("handler.validation_ms"):
+            path_parameters = event.get("pathParameters") if isinstance(event, dict) else None
+            artist_name = (path_parameters.get("artist_name")
+                           if isinstance(path_parameters, dict) else None)
+            valid = isinstance(artist_name, str) and bool(artist_name.strip())
+            if valid:
+                artist_name = artist_name.strip()
+        if not valid:
+            outcome, status, body = "validation_error", 400, {"error": "artist_name is required"}
+        else:
+            try:
+                result = process_enriched_artist(artist_name)
+                sources = result.get("sources", sources)
+                outcome, status, body = "success", 200, _success_body(result)
+            except _NOT_FOUND_ERRORS:
+                outcome, status, body = "not_found", 404, {"error": "artist not found"}
+            except (MusicBrainzError, TheAudioDBError) as error:
+                logger.error("Upstream unavailable error_type=%s", type(error).__name__)
+                outcome, status, body = "upstream_error", 502, {"error": "upstream service unavailable"}
+            except Exception:
+                # Do not attach exception text: upstream exceptions may contain
+                # credential-bearing URLs or response payload fragments.
+                logger.error("Unexpected artist pipeline error")
+                outcome, status, body = "internal_error", 500, {"error": "internal server error"}
+        with metrics.measure("response.serialization_ms"):
+            response = _response(status, body)
+        metrics.values["response_bytes"] = len(response["body"].encode("utf-8"))
+        return response
+    finally:
+        metrics.add_duration("pipeline.total_ms", pipeline_started)
+        metrics.values["lambda.cold_start"] = cold_start
+        record = {"event": "artist_pipeline_completed", "request_id": request_id,
+                  "outcome": outcome, "cold_start": cold_start,
+                  "sources": sources, "metrics": metrics.snapshot()}
+        logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+        deactivate(token)
