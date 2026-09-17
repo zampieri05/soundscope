@@ -6,11 +6,11 @@ test("PKCE RFC vector", async () => assert.equal(await auth.createChallenge("dBj
 test("state validation", () => { assert.equal(auth.statesMatch("abc", "abc"), true); assert.equal(auth.statesMatch("abc", "xyz"), false); assert.equal(auth.statesMatch(null, null), false); });
 test("callback parsing", () => assert.deepEqual(auth.parseCallback("?code=c&state=s"), { code: "c", state: "s", error: null, errorDescription: null }));
 test("expiration", () => { assert.equal(auth.isExpired({ accessToken: "x", expiresAt: 101 }, 100), false); assert.equal(auth.isExpired({ accessToken: "x", expiresAt: 100 }, 100), true); });
-test("authorization requests only the user-top-read scope", async () => {
+test("authorization requests only the required personal-data scopes", async () => {
   const values = new Map(); let destination = "";
   const storage = { setItem: (key, value) => values.set(key, value) };
   await auth.begin(storage, { assign: (url) => { destination = url; } });
   const url = new URL(destination);
-  assert.equal(url.searchParams.get("scope"), "user-top-read");
+  assert.equal(url.searchParams.get("scope"), "user-top-read user-read-recently-played");
   assert.equal(url.searchParams.get("code_challenge_method"), "S256");
 });
