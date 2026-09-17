@@ -4,6 +4,7 @@ from dataclasses import asdict
 import logging
 from typing import Any, TypedDict
 import unicodedata
+import uuid
 
 from src.models import EnrichedArtist, NormalizedArtist
 from src.pipeline.enrichment.artist import enrich_artist, partial_artist, _comparable_name
@@ -61,10 +62,22 @@ def _select_musicbrainz_artist(search_raw: Any, query: str) -> dict[str, Any]:
     eligible: list[dict[str, Any]] = []
     if isinstance(artists, list):
         for candidate in artists:
-            if not isinstance(candidate, dict) or wanted not in _candidate_names(candidate):
+            if not isinstance(candidate, dict):
+                continue
+            if wanted not in _candidate_names(candidate):
+                logger.info(
+                    "MusicBrainz candidate rejected reason=name_mismatch "
+                    "query=%r candidate_mbid=%r",
+                    query, candidate.get("id"),
+                )
                 continue
             score = candidate.get("score")
             if score is not None and (not isinstance(score, int) or score < 80):
+                logger.info(
+                    "MusicBrainz candidate rejected reason=score_too_low "
+                    "query=%r candidate_mbid=%r score=%r",
+                    query, candidate.get("id"), score,
+                )
                 continue
             if isinstance(candidate.get("id"), str) and candidate["id"].strip():
                 eligible.append(candidate)
@@ -104,19 +117,86 @@ def _musicbrainz_id(artist: dict[str, Any]) -> str:
     return artist["id"].strip()
 
 
+_COUNTRY_ALIASES = {
+    "br": "BR", "brazil": "BR", "brasil": "BR",
+    "ca": "CA", "canada": "CA",
+    "de": "DE", "germany": "DE", "deutschland": "DE",
+    "fr": "FR", "france": "FR",
+    "gb": "GB", "uk": "GB", "united kingdom": "GB", "great britain": "GB",
+    "ie": "IE", "ireland": "IE",
+    "is": "IS", "iceland": "IS",
+    "mx": "MX", "mexico": "MX",
+    "pt": "PT", "portugal": "PT",
+    "us": "US", "usa": "US", "united states": "US",
+    "united states of america": "US",
+}
+
+
+def _valid_mbid(value: Any) -> str | None:
+    """Retorna a forma canônica apenas para um UUID MusicBrainz válido."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = uuid.UUID(value.strip())
+    except (ValueError, AttributeError):
+        return None
+    return str(parsed)
+
+
+def _country_identity(country: str | None, country_code: str | None) -> str | None:
+    """Normaliza códigos/nomes explícitos, sem correspondência por substring."""
+    for value in (country_code, country):
+        if not isinstance(value, str) or not value.strip():
+            continue
+        normalized = unicodedata.normalize("NFKC", value).strip().casefold()
+        if normalized in _COUNTRY_ALIASES:
+            return _COUNTRY_ALIASES[normalized]
+        # Campos editoriais do TheAudioDB podem terminar em um país explícito,
+        # por exemplo "California, USA". Só o componente completo após a
+        # última vírgula é considerado; não há busca genérica por substring.
+        suffix = normalized.rsplit(",", 1)[-1].strip()
+        if suffix in _COUNTRY_ALIASES:
+            return _COUNTRY_ALIASES[suffix]
+        if len(normalized) == 2 and normalized.isalpha():
+            return normalized.upper()
+        return normalized
+    return None
+
+
+def _identity_rejected(reason: str, tadb: NormalizedArtist,
+                       mb: NormalizedArtist, score: Any) -> bool:
+    logger.info(
+        "Artist identity rejected reason=%s theaudiodb_artist_id=%s "
+        "musicbrainz_mbid=%s score=%r",
+        reason, tadb.source_artist_id, mb.source_artist_id, score,
+    )
+    return False
+
+
 def _same_identity(tadb: NormalizedArtist, mb: NormalizedArtist,
                    search_match: dict[str, Any], details: dict[str, Any]) -> bool:
     names = _candidate_names(search_match) | _candidate_names(details)
     if _comparable_name(tadb.name) not in names:
-        return False
-    # Países conflitantes são evidência negativa; ausência não é inventada.
-    if tadb.country and mb.country:
-        left = unicodedata.normalize("NFKC", tadb.country).casefold()
-        right = unicodedata.normalize("NFKC", mb.country).casefold()
-        if left != right and not ({left, right} <= {"usa", "us", "united states"}):
-            return False
+        return _identity_rejected("name_mismatch", tadb, mb, search_match.get("score"))
+
     score = search_match.get("score")
-    return score is None or (isinstance(score, int) and score >= 80)
+    if score is not None and (not isinstance(score, int) or score < 80):
+        return _identity_rejected("score_too_low", tadb, mb, score)
+
+    tadb_mbid = _valid_mbid(tadb.musicbrainz_id)
+    mb_mbid = _valid_mbid(mb.musicbrainz_id or details.get("id"))
+    if tadb_mbid and mb_mbid:
+        if tadb_mbid != mb_mbid:
+            return _identity_rejected("mbid_mismatch", tadb, mb, score)
+        # Um UUID compartilhado identifica deterministicamente a entidade; não
+        # rejeitamos por divergências editoriais de localização entre fontes.
+        return True
+
+    left = _country_identity(tadb.country, tadb.country_code)
+    right = _country_identity(mb.country, mb.country_code)
+    if left and right and left != right:
+        return _identity_rejected("country_mismatch", tadb, mb, score)
+    return True
 
 
 def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:

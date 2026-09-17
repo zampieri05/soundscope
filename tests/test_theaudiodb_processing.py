@@ -48,6 +48,8 @@ class ProcessTheAudioDBArtistTests(unittest.TestCase):
                 "formed_year": None,
                 "biography": None,
                 "image_url": None,
+                "musicbrainz_id": None,
+                "country_code": None,
             },
             "artists",
             "111279",

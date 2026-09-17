@@ -24,6 +24,8 @@ class TheAudioDBArtistTransformerTests(unittest.TestCase):
                     "intFormedYear": "1981",
                     "strBiographyEN": "A band biography.",
                     "strArtistThumb": "https://example.com/artist.jpg",
+                    "strMusicBrainzID": "65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab",
+                    "strCountryCode": "US",
                 },
                 {"idArtist": "other", "strArtist": "Other"},
             ]
@@ -42,6 +44,8 @@ class TheAudioDBArtistTransformerTests(unittest.TestCase):
                 formed_year="1981",
                 biography="A band biography.",
                 image_url="https://example.com/artist.jpg",
+                musicbrainz_id="65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab",
+                country_code="US",
             ),
         )
 
@@ -91,6 +95,8 @@ class MusicBrainzArtistTransformerTests(unittest.TestCase):
                 country="US",
                 genre="heavy metal",
                 formed_year="1981",
+                musicbrainz_id="65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab",
+                country_code="US",
             ),
         )
 

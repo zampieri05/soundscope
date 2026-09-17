@@ -51,6 +51,8 @@ def transform_musicbrainz_artist(raw_data: Any) -> NormalizedArtist:
         formed_year=_formed_year(raw_data),
         biography=None,
         image_url=None,
+        musicbrainz_id=_required_text(raw_data, "id"),
+        country_code=_optional_text(raw_data.get("country")),
     )
 
 
