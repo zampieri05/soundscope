@@ -22,3 +22,26 @@ completude por catálogo. Por isso, a indisponibilidade da discografia é indica
 nos logs por artista e MBID, sem ampliar o schema; a lista MusicBrainz vazia não
 distingue publicamente “sem lançamentos” de “catálogo temporariamente
 indisponível”.
+
+## Cache de resultados processados de artistas
+
+A busca de artista usa o próprio S3 privado como read-through cache. Uma chave
+exata é obtida com NFKC, remoção/compactação de espaços e `casefold`; o texto
+normalizado é convertido em SHA-256, sem fuzzy matching. O pequeno índice fica
+em `cache/artist-search/v1/<sha256>.json` e referencia o documento já existente
+em `processed/enriched/artists/...`. O TTL lógico padrão é de 24 horas (86.400
+segundos) e pode ser alterado com `SOUNDSCOPE_ARTIST_CACHE_TTL_SECONDS`.
+
+Em um **HIT**, somente o índice e o processed são lidos. O documento é validado
+e desserializado nos mesmos modelos usados pelo pipeline; nenhuma API externa e
+nenhuma escrita RAW, processed ou DynamoDB é executada. Em **MISS** ou **STALE**,
+o pipeline existente roda sem alterações e publica o índice apenas depois de
+terminar e persistir o processed com sucesso. Ausência, JSON inválido,
+referência quebrada, incompatibilidade de schema ou erro S3 são falhas abertas:
+ficam registrados apenas de forma técnica e a busca segue pelo pipeline normal.
+
+O índice guarda versão, referência processed, instante UTC e somente a metadata
+operacional necessária para reconstruir a resposta. Não armazena biografia,
+payload RAW, credenciais, tokens ou chaves de API. O processed continua sendo a
+fonte do perfil completo e o mesmo `EnrichedArtist` alimenta a serialização em
+HIT e MISS; portanto, o contrato HTTP não ganha um segundo formato.
