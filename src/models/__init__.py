@@ -15,6 +15,10 @@ class NormalizedArtist:
     formed_year: str | None = None
     biography: str | None = None
     image_url: str | None = None
+    # Identificadores auxiliares de identidade. Mantidos opcionais para que
+    # documentos normalizados antigos continuem compatíveis.
+    musicbrainz_id: str | None = None
+    country_code: str | None = None
 
 
 @dataclass(frozen=True)
