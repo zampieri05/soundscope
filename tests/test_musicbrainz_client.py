@@ -8,6 +8,7 @@ import requests
 from src.services.musicbrainz.client import (
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_USER_AGENT,
+    MAX_RETRY_DELAY_SECONDS,
     ArtistNotFoundError,
     MusicBrainzError,
     get_artist_details,
@@ -202,6 +203,24 @@ class RetryTests(MusicBrainzClientTestCase):
 
     @patch("src.services.musicbrainz.client._wait_for_rate_limit")
     @patch("src.services.musicbrainz.client.requests.get")
+    def test_retries_each_transient_gateway_status_then_succeeds(
+        self, mock_get: Mock, mock_rate_limit: Mock
+    ) -> None:
+        for status in (502, 504):
+            with self.subTest(status=status):
+                mock_get.reset_mock()
+                mock_rate_limit.reset_mock()
+                self.mock_sleep.reset_mock()
+                mock_get.side_effect = [self._response(status), self._response(200)]
+
+                search_artist("Metallica")
+
+                self.assertEqual(mock_get.call_count, 2)
+                self.assertEqual(mock_rate_limit.call_count, 2)
+                self.mock_sleep.assert_called_once_with(1.0)
+
+    @patch("src.services.musicbrainz.client._wait_for_rate_limit")
+    @patch("src.services.musicbrainz.client.requests.get")
     def test_stops_after_three_503_responses_and_preserves_cause(
         self, mock_get: Mock, mock_rate_limit: Mock
     ) -> None:
@@ -237,12 +256,60 @@ class RetryTests(MusicBrainzClientTestCase):
     def test_uses_retry_after_when_present(
         self, mock_get: Mock, _mock_rate_limit: Mock
     ) -> None:
-        mock_get.side_effect = [self._response(503, retry_after="7"), self._response(200)]
+        mock_get.side_effect = [self._response(503, retry_after="4"), self._response(200)]
 
         search_artist("Metallica")
 
         self.assertEqual(mock_get.call_count, 2)
-        self.mock_sleep.assert_called_once_with(7.0)
+        self.mock_sleep.assert_called_once_with(4.0)
+
+    @patch("src.services.musicbrainz.client._wait_for_rate_limit")
+    @patch("src.services.musicbrainz.client.requests.get")
+    def test_429_retry_after_is_capped(
+        self, mock_get: Mock, _mock_rate_limit: Mock
+    ) -> None:
+        mock_get.side_effect = [self._response(429, retry_after="120"), self._response(200)]
+
+        search_artist("Metallica")
+
+        self.mock_sleep.assert_called_once_with(MAX_RETRY_DELAY_SECONDS)
+
+    @patch("src.services.musicbrainz.client._wait_for_rate_limit")
+    @patch("src.services.musicbrainz.client.requests.get")
+    def test_retries_read_and_connect_timeouts_then_succeeds(
+        self, mock_get: Mock, mock_rate_limit: Mock
+    ) -> None:
+        for timeout in (requests.ReadTimeout("read"), requests.ConnectTimeout("connect")):
+            with self.subTest(timeout=type(timeout).__name__):
+                mock_get.reset_mock()
+                mock_rate_limit.reset_mock()
+                self.mock_sleep.reset_mock()
+                mock_get.side_effect = [timeout, self._response(200)]
+
+                search_artist("Metallica")
+
+                self.assertEqual(mock_get.call_count, 2)
+                self.assertEqual(mock_rate_limit.call_count, 2)
+                self.mock_sleep.assert_called_once_with(1.0)
+
+    @patch("src.services.musicbrainz.client._wait_for_rate_limit")
+    @patch("src.services.musicbrainz.client.requests.get")
+    def test_timeout_retries_are_exhausted_and_preserve_cause(
+        self, mock_get: Mock, mock_rate_limit: Mock
+    ) -> None:
+        timeout = requests.ReadTimeout("read")
+        mock_get.side_effect = timeout
+
+        with self.assertRaises(MusicBrainzError) as raised:
+            search_artist("Metallica")
+
+        self.assertIs(raised.exception.__cause__, timeout)
+        self.assertEqual(mock_get.call_count, 3)
+        self.assertEqual(mock_rate_limit.call_count, 3)
+        self.assertEqual(
+            self.mock_sleep.call_args_list,
+            [unittest.mock.call(1.0), unittest.mock.call(2.0)],
+        )
 
     @patch("src.services.musicbrainz.client._wait_for_rate_limit")
     @patch("src.services.musicbrainz.client.requests.get")

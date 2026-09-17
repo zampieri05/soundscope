@@ -1,6 +1,7 @@
 """Orquestração resiliente multi-source de artistas enriquecidos."""
 
 from dataclasses import asdict
+import logging
 from typing import Any, TypedDict
 import unicodedata
 
@@ -19,6 +20,9 @@ from src.services.theaudiodb import client as theaudiodb_client
 from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
+
+
+logger = logging.getLogger(__name__)
 
 
 class EnrichedArtistProcessingResult(TypedDict, total=False):
@@ -143,6 +147,10 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
             pass
     except (TheAudioDBError, UsableArtistNotFoundError) as error:
         failures.append(error)
+        logger.info(
+            "TheAudioDB source unavailable artist=%r outcome=%s",
+            artist_name, type(error).__name__,
+        )
 
     try:
         search_raw = musicbrainz_client.search_artist(artist_name)
@@ -154,26 +162,55 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         mb_artist = transform_musicbrainz_artist(mb_details)
         members = transform_musicbrainz_members(mb_details)
         if extended_catalog:
-            release_raw = musicbrainz_client.get_release_groups(mbid)
-            save_raw_json("musicbrainz", release_raw, "release-groups", mbid)
-            mb_albums = transform_musicbrainz_albums(release_raw)
+            try:
+                release_raw = musicbrainz_client.get_release_groups(mbid)
+                save_raw_json("musicbrainz", release_raw, "release-groups", mbid)
+                mb_albums = transform_musicbrainz_albums(release_raw)
+            except MusicBrainzError as error:
+                # get_release_groups only returns a fully collected snapshot. If
+                # any page fails, discard it rather than presenting a partial
+                # MusicBrainz catalog as complete.
+                logger.warning(
+                    "MusicBrainz release groups unavailable; discarding catalog "
+                    "artist=%r mbid=%s error_type=%s",
+                    artist_name, mbid, type(error).__name__,
+                )
     except MusicBrainzError as error:
         failures.append(error)
+        logger.info(
+            "MusicBrainz source unavailable; considering fallback artist=%r "
+            "mbid=%s outcome=%s",
+            artist_name, mbid, type(error).__name__,
+        )
 
     if tadb_artist and mb_artist and _same_identity(tadb_artist, mb_artist, mb_match, mb_details):
         enriched = (enrich_artist(tadb_artist, mb_artist, tadb_albums, mb_albums, members)
                     if extended_catalog else enrich_artist(tadb_artist, mb_artist))
     elif mb_artist:
+        if not tadb_artist:
+            logger.info("Using MusicBrainz fallback artist=%r mbid=%s", artist_name, mbid)
         enriched = partial_artist(mb_artist, mb_albums, members)
     elif tadb_artist:
+        logger.info("Using TheAudioDB fallback artist=%r artist_id=%s", artist_name, tadb_id)
         enriched = partial_artist(tadb_artist, tadb_albums)
     else:
         not_found_types = (theaudiodb_client.ArtistNotFoundError,
                            ArtistNotFoundError,
                            UsableArtistNotFoundError)
-        if failures and all(isinstance(error, not_found_types) for error in failures):
+        upstream_failures = [
+            error for error in failures if not isinstance(error, not_found_types)
+        ]
+        if upstream_failures:
+            logger.error(
+                "All artist sources unusable after upstream failure artist=%r "
+                "failure_types=%s",
+                artist_name,
+                ",".join(type(error).__name__ for error in upstream_failures),
+            )
+            raise upstream_failures[-1]
+        if failures:
             raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
-        raise failures[-1] if failures else UsableArtistNotFoundError("Artista ausente.")
+        raise UsableArtistNotFoundError("Artista ausente.")
 
     serialized = asdict(enriched)
     if not extended_catalog:
