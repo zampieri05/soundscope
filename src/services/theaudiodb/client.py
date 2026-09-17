@@ -4,6 +4,7 @@ import os
 from typing import Any
 
 import requests
+from src.utils.telemetry import increment
 
 
 BASE_URL = "https://www.theaudiodb.com/api/v1/json"
@@ -44,6 +45,7 @@ def search_artist(artist_name: str) -> dict[str, Any]:
 
     url = f"{BASE_URL}/{api_key}/search.php"
 
+    increment("theaudiodb.requests")
     try:
         response = requests.get(
             url,
@@ -93,6 +95,7 @@ def search_albums(artist_id: str) -> dict[str, Any]:
 
     url = f"{BASE_URL}/{api_key}/album.php"
 
+    increment("theaudiodb.requests")
     try:
         response = requests.get(
             url,
