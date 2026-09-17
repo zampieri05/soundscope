@@ -13,6 +13,7 @@
   <script src="js/spotify-auth.js" defer></script>
   <script src="js/spotify-catalog.js" defer></script>
   <script src="js/spotify-insights.js" defer></script>
+  <script src="js/spotify-history.js" defer></script>
   <script src="js/discography.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
@@ -119,6 +120,11 @@
       <p class="insights-status" id="insights-status" role="status" aria-live="polite"></p>
       <section class="insights-section" aria-labelledby="top-artists-title"><div class="insights-heading"><p>01 / Afinidades</p><h3 id="top-artists-title">Artistas mais ouvidos</h3></div><div class="ranking" id="top-artists"></div></section>
       <section class="insights-section" aria-labelledby="top-tracks-title"><div class="insights-heading"><p>02 / Repertório</p><h3 id="top-tracks-title">Músicas mais ouvidas</h3></div><div class="ranking" id="top-tracks"></div></section>
+      <section class="insights-section history-section" aria-labelledby="history-title">
+        <div class="insights-heading history-heading"><p>03 / Histórico</p><div><h3 id="history-title">Últimas escutas</h3><button class="history-refresh" id="history-refresh" type="button">Atualizar</button></div></div>
+        <p class="insights-status" id="history-status" role="status" aria-live="polite"></p>
+        <div class="history" id="spotify-history"></div>
+      </section>
     </section>
   </main>
   <footer class="site-footer"><a class="brand" href="#inicio">SoundScope</a><p>Música, dados e histórias em uma só frequência.</p><span>© 2026</span></footer>
