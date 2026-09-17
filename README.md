@@ -773,3 +773,11 @@ passa a refletir perfis parciais. Discografias excepcionais podem exigir até 20
 chamadas MusicBrainz sequenciais e, pelo rate limit, aproximar ou exceder o timeout
 do navegador de 15 segundos; o timeout não foi aumentado e este risco permanece
 para revisão operacional.
+
+### Minha Órbita V1
+
+**Minha Órbita** é uma visualização editorial dos mesmos dez Top Artists já carregados pelo Meu SoundScope. `spotify-orbit.js` recebe a lista normalizada de `spotify-insights.js`; não possui cliente HTTP e, portanto, não cria uma segunda consulta. Seu layout determinístico usa apenas ordem, nome, ID, imagem oficial e `external_urls.spotify`. A posição no ranking altera discretamente a hierarquia visual, sem representar streams, tempo, afinidade quantitativa, similaridade ou qualquer métrica inferida. As linhas ligam cada item somente ao centro pessoal e não expressam relações entre artistas.
+
+Os períodos continuam sendo `short_term` (4 semanas), `medium_term` (6 meses) e `long_term` (longo prazo). Clique, toque, Tab, Enter e Espaço funcionam por meio de botões nativos; a seleção oferece o fluxo existente de busca do SoundScope e, somente quando a URL oficial validada existe, o link externo do Spotify. O módulo limita a composição a dez nós, usa posições-base estáveis e CSS transforms para um drift mínimo; `prefers-reduced-motion` remove drift e transições. Em telas pequenas, a composição fica mais compacta e o painel contextual passa para baixo do mapa.
+
+O trajeto permanece **Spotify → navegador**: não há envio para backend, AWS, MusicBrainz, TheAudioDB ou analytics, nem persistência adicional ou logs de dados pessoais. O recurso reutiliza `user-top-read`, sem novo scope e sem alteração no OAuth. A V1 não calcula relações entre artistas, recomendações, histórico temporal, reprodução, SoundGraph ou Rabbit Hole; imagens ausentes recebem um fallback tipográfico local.

@@ -215,9 +215,13 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
 }
 initializeReveal();
 
-const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status"), insights: $("#meu-soundscope"), insightsNav: $("#insights-nav"), profile: $("#spotify-profile"), profileImage: $("#spotify-profile-image"), profileName: $("#spotify-profile-name"), insightsStatus: $("#insights-status"), artists: $("#top-artists"), tracks: $("#top-tracks"), history: $("#spotify-history"), historyStatus: $("#history-status"), historyRefresh: $("#history-refresh") };
+const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status"), insights: $("#meu-soundscope"), insightsNav: $("#insights-nav"), profile: $("#spotify-profile"), profileImage: $("#spotify-profile-image"), profileName: $("#spotify-profile-name"), insightsStatus: $("#insights-status"), artists: $("#top-artists"), tracks: $("#top-tracks"), history: $("#spotify-history"), historyStatus: $("#history-status"), historyRefresh: $("#history-refresh"), orbit: $("#minha-orbita"), orbitEnter: $("#orbit-enter"), orbitClose: $("#orbit-close") };
 let insightsRequest = 0;
 let historyRequest = 0;
+const orbitController = window.SoundScopeSpotifyOrbit?.mount(spotifyElements.orbit, {
+  reducedMotion: window.matchMedia("(prefers-reduced-motion:reduce)").matches,
+  onExplore: (artist) => { elements.input.value = artist.name; searchArtist(artist.name); }
+});
 
 function rankingImage(src, alt) {
   if (!src) { const placeholder = document.createElement("span"); placeholder.className = "ranking__placeholder"; placeholder.setAttribute("aria-hidden", "true"); return placeholder; }
@@ -272,7 +276,7 @@ async function loadInsights(timeRange = "short_term") {
   const request = ++insightsRequest; spotifyElements.insights.setAttribute("aria-busy", "true"); spotifyElements.insightsStatus.textContent = "Atualizando seu universo musical…";
   try {
     const [artists, tracks] = await Promise.all([insights.getTopArtists(timeRange, spotifySession.accessToken), insights.getTopTracks(timeRange, spotifySession.accessToken)]);
-    if (request !== insightsRequest) return; renderTopArtists(artists.items); renderTopTracks(tracks.items); spotifyElements.insightsStatus.textContent = "";
+    if (request !== insightsRequest) return; renderTopArtists(artists.items); renderTopTracks(tracks.items); orbitController?.setRange(timeRange); orbitController?.setArtists(artists.items); spotifyElements.insightsStatus.textContent = "";
   } catch (error) {
     if (request !== insightsRequest) return; spotifyElements.insightsStatus.textContent = insightsError(error);
     if (error.message === "SESSION_EXPIRED") { window.SoundScopeSpotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("expired"); }
@@ -306,6 +310,8 @@ function renderInsightsProfile(session) {
 document.querySelectorAll(".period-selector button").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".period-selector button").forEach((item) => { const active = item === button; item.classList.toggle("is-active", active); item.setAttribute("aria-pressed", String(active)); }); loadInsights(button.dataset.range);
 }));
+spotifyElements.orbitEnter.addEventListener("click", () => { spotifyElements.orbit.classList.remove("is-hidden"); spotifyElements.orbitEnter.setAttribute("aria-expanded", "true"); spotifyElements.orbit.scrollIntoView({ behavior: "smooth", block: "start" }); });
+spotifyElements.orbitClose.addEventListener("click", () => { spotifyElements.orbit.classList.add("is-hidden"); spotifyElements.orbitEnter.setAttribute("aria-expanded", "false"); spotifyElements.orbitEnter.focus(); });
 spotifyElements.historyRefresh.addEventListener("click", () => loadHistory(true));
 function renderSpotify(state, session) {
   const connected = state === "connected";
