@@ -13,6 +13,8 @@ const elements = {
   dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap")
 };
 let requestInProgress = false;
+let spotifySession = null;
+let currentArtistName = "";
 
 function setState(state, message = "") {
   elements.loading.classList.toggle("is-hidden", state !== "loading");
@@ -32,6 +34,7 @@ function setFact(selector, node, value) {
 function renderArtist(payload) {
   if (!payload || typeof payload !== "object" || !payload.artist?.name) throw new Error("UNEXPECTED_RESPONSE");
   const artist = payload.artist;
+  currentArtistName = artist.name;
   elements.name.textContent = artist.name;
   elements.meta.textContent = [artist.genre, artist.country].filter(Boolean).join("  •  ");
   elements.meta.classList.toggle("is-hidden", !elements.meta.textContent);
@@ -107,8 +110,33 @@ function renderAlbums(albums) {
     }
     const year = document.createElement("p"); year.className = "album__year"; year.textContent = album.year || "Ano não informado";
     const title = document.createElement("h4"); title.textContent = album.title || "Título não informado";
-    card.append(visual, year, title); return card;
+    const spotifyResult = document.createElement("div"); spotifyResult.className = "album__spotify"; spotifyResult.setAttribute("aria-live", "polite");
+    card.tabIndex = 0; card.setAttribute("role", "button"); card.setAttribute("aria-label", `${album.title || "Álbum"}. Consultar no Spotify`);
+    const select = () => lookupSpotifyAlbum(album, card, spotifyResult);
+    card.addEventListener("click", select); card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
+    card.append(visual, year, title, spotifyResult); return card;
   }));
+}
+
+async function lookupSpotifyAlbum(album, card, output) {
+  if (card.dataset.spotifyState === "loading" || card.dataset.spotifyState === "done") return;
+  if (!spotifySession) { output.textContent = "Conecte o Spotify para ouvir este álbum."; card.dataset.spotifyState = "disconnected"; return; }
+  const spotify = window.SoundScopeSpotify;
+  if (spotify.isExpired(spotifySession)) { spotify.disconnect(); spotifySession = null; renderSpotify("expired"); output.textContent = "Sua sessão do Spotify expirou."; return; }
+  const catalog = window.SoundScopeSpotifyCatalog; if (!catalog) return;
+  card.dataset.spotifyState = "loading"; output.textContent = "Consultando Spotify…";
+  try {
+    const result = await catalog.lookupAlbum({ artistName: currentArtistName, albumTitle: album.title, releaseYear: album.year }, spotifySession.accessToken);
+    card.dataset.spotifyState = "done";
+    if (!result.matched) { output.textContent = result.confidence === "ambiguous" ? "Correspondência não confirmada no Spotify." : "Álbum não encontrado no Spotify."; return; }
+    const link = document.createElement("a"); link.href = result.album.spotifyUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "▶ Ouvir no Spotify ↗";
+    link.addEventListener("click", (event) => event.stopPropagation()); output.replaceChildren(link);
+  } catch (error) {
+    card.dataset.spotifyState = "error";
+    if (error.message === "SESSION_EXPIRED") { spotify.disconnect(); spotifySession = null; renderSpotify("expired"); output.textContent = "Sua sessão do Spotify expirou."; }
+    else if (error.message === "RATE_LIMITED") output.textContent = "Spotify ocupado. Tente novamente em instantes.";
+    else output.textContent = "Não foi possível consultar o Spotify. Tente novamente.";
+  }
 }
 
 function renderSourceIds(sourceIds) {
@@ -179,9 +207,10 @@ async function initializeSpotify() {
   const spotify = window.SoundScopeSpotify; if (!spotify) return;
   let session = spotify.getSession();
   if (session && spotify.isExpired(session)) { spotify.disconnect(); renderSpotify("expired"); session = null; } else if (session) renderSpotify("connected", session);
+  spotifySession = session;
   const callback = spotify.parseCallback(window.location.search);
-  if (callback.code || callback.error || callback.state) { renderSpotify("processing"); try { session = await spotify.handleCallback(); renderSpotify("connected", session); } catch (_) { renderSpotify("error"); } }
+  if (callback.code || callback.error || callback.state) { renderSpotify("processing"); try { session = await spotify.handleCallback(); spotifySession = session; renderSpotify("connected", session); } catch (_) { spotifySession = null; renderSpotify("error"); } }
   spotifyElements.connect.addEventListener("click", async () => { renderSpotify("redirecting"); try { await spotify.begin(); } catch (_) { renderSpotify("error"); } });
-  spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); renderSpotify("disconnected"); });
+  spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); spotifySession = null; renderSpotify("disconnected"); document.querySelectorAll(".album__spotify").forEach((node) => { node.textContent = ""; delete node.parentElement.dataset.spotifyState; }); });
 }
 initializeSpotify();
