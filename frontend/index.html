@@ -12,13 +12,14 @@
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/spotify-auth.js" defer></script>
   <script src="js/spotify-catalog.js" defer></script>
+  <script src="js/spotify-insights.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
   <header class="topbar">
     <a class="brand" href="#inicio" aria-label="SoundScope, início"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a>
-    <nav aria-label="Navegação principal"><a href="#inicio">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a></nav>
+    <nav aria-label="Navegação principal"><a href="#inicio">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a><a class="is-hidden" id="insights-nav" href="#meu-soundscope">Meu SoundScope</a></nav>
     <div class="topbar-actions">
       <button class="spotify-button" id="spotify-connect" type="button" aria-describedby="spotify-status">Conectar Spotify</button>
       <button class="spotify-disconnect is-hidden" id="spotify-disconnect" type="button">Desconectar Spotify</button>
@@ -104,6 +105,19 @@
         <small>Informações reunidas de múltiplas fontes musicais.</small>
       </aside><div class="panel-backdrop" id="panel-backdrop"></div>
     </article>
+
+    <section class="insights is-hidden" id="meu-soundscope" aria-labelledby="insights-title">
+      <header class="insights-hero">
+        <div><p class="kicker"><span></span> Meu SoundScope</p><h2 id="insights-title">Seu universo<br>musical.</h2><p>Uma leitura dos artistas e músicas que mais acompanharam você.</p></div>
+        <a class="spotify-profile is-hidden" id="spotify-profile" target="_blank" rel="noopener noreferrer"><img id="spotify-profile-image" alt=""><span><small>Perfil Spotify</small><strong id="spotify-profile-name"></strong></span><b aria-hidden="true">↗</b></a>
+      </header>
+      <div class="period-selector" role="group" aria-label="Período dos dados">
+        <button class="is-active" type="button" data-range="short_term" aria-pressed="true">4 semanas</button><button type="button" data-range="medium_term" aria-pressed="false">6 meses</button><button type="button" data-range="long_term" aria-pressed="false">Longo prazo</button>
+      </div>
+      <p class="insights-status" id="insights-status" role="status" aria-live="polite"></p>
+      <section class="insights-section" aria-labelledby="top-artists-title"><div class="insights-heading"><p>01 / Afinidades</p><h3 id="top-artists-title">Artistas mais ouvidos</h3></div><div class="ranking" id="top-artists"></div></section>
+      <section class="insights-section" aria-labelledby="top-tracks-title"><div class="insights-heading"><p>02 / Repertório</p><h3 id="top-tracks-title">Músicas mais ouvidas</h3></div><div class="ranking" id="top-tracks"></div></section>
+    </section>
   </main>
   <footer class="site-footer"><a class="brand" href="#inicio">SoundScope</a><p>Música, dados e histórias em uma só frequência.</p><span>© 2026</span></footer>
 </body>
