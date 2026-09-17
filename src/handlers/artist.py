@@ -5,6 +5,12 @@ import json
 import logging
 from typing import Any
 
+from src.cache.artist import (
+    ArtistCacheMiss,
+    ArtistCacheStale,
+    load_cached_artist,
+    save_artist_cache_index,
+)
 from src.pipeline.ingestion.errors import UsableArtistNotFoundError
 from src.pipeline.processing import (
     EnrichedArtistProcessingResult,
@@ -18,7 +24,7 @@ from src.services.theaudiodb.client import (
     ArtistNotFoundError as TheAudioDBArtistNotFoundError,
     TheAudioDBError,
 )
-from src.utils.telemetry import InvocationMetrics, activate, deactivate
+from src.utils.telemetry import InvocationMetrics, activate, deactivate, increment
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +65,22 @@ def _success_body(result: EnrichedArtistProcessingResult) -> dict[str, Any]:
     }
 
 
+def _run_pipeline_and_publish_index(
+    artist_name: str,
+) -> tuple[EnrichedArtistProcessingResult, bool]:
+    """Run the authoritative path, then best-effort publish its cache pointer."""
+    result = process_enriched_artist(artist_name)
+    try:
+        save_artist_cache_index(artist_name, result)
+    except Exception:
+        # The cache is an optimization. Keep errors payload-free and do not turn
+        # an already successful authoritative pipeline into an HTTP failure.
+        increment("cache.errors")
+        logger.warning("Artist cache index update failed")
+        return result, False
+    return result, True
+
+
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Run the enriched-artist pipeline for an API Gateway path parameter."""
     global _cold_start
@@ -69,6 +91,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     request_id = getattr(context, "aws_request_id", None)
     outcome = "error"
     sources = {"theaudiodb": False, "musicbrainz": False}
+    cache = {"status": "not_checked"}
     try:
         with metrics.measure("handler.validation_ms"):
             path_parameters = event.get("pathParameters") if isinstance(event, dict) else None
@@ -81,7 +104,32 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             outcome, status, body = "validation_error", 400, {"error": "artist_name is required"}
         else:
             try:
-                result = process_enriched_artist(artist_name)
+                try:
+                    result, cache_age = load_cached_artist(artist_name)
+                    increment("cache.hits")
+                    metrics.values["cache.age_seconds"] = round(cache_age, 3)
+                    cache = {"status": "hit"}
+                except ArtistCacheMiss:
+                    increment("cache.misses")
+                    cache = {"status": "miss", "reason": "not_found"}
+                    result, published = _run_pipeline_and_publish_index(artist_name)
+                    if not published:
+                        cache["index_update"] = "error"
+                except ArtistCacheStale:
+                    increment("cache.stale")
+                    increment("cache.misses")
+                    cache = {"status": "miss", "reason": "stale"}
+                    result, published = _run_pipeline_and_publish_index(artist_name)
+                    if not published:
+                        cache["index_update"] = "error"
+                except Exception:
+                    increment("cache.errors")
+                    increment("cache.misses")
+                    cache = {"status": "miss", "reason": "error"}
+                    logger.warning("Artist cache read failed")
+                    result, published = _run_pipeline_and_publish_index(artist_name)
+                    if not published:
+                        cache["index_update"] = "error"
                 sources = result.get("sources", sources)
                 outcome, status, body = "success", 200, _success_body(result)
             except _NOT_FOUND_ERRORS:
@@ -103,6 +151,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         metrics.values["lambda.cold_start"] = cold_start
         record = {"event": "artist_pipeline_completed", "request_id": request_id,
                   "outcome": outcome, "cold_start": cold_start,
-                  "sources": sources, "metrics": metrics.snapshot()}
+                  "sources": sources, "cache": cache,
+                  "metrics": metrics.snapshot()}
         logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
         deactivate(token)

@@ -19,6 +19,10 @@ class S3StorageError(Exception):
     """Indica que um documento não pôde ser armazenado no S3."""
 
 
+class S3ObjectNotFoundError(S3StorageError):
+    """Indica que uma leitura apontou para uma chave S3 inexistente."""
+
+
 def _required_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise S3StorageError(f"{field} deve ser um texto não vazio.")
@@ -89,6 +93,56 @@ def _put_json(
         raise S3StorageError(
             f"Falha ao salvar o {layer} em s3://{bucket}/{key}."
         ) from exc
+
+
+def get_json(
+    key: str,
+    *,
+    s3_client: Any | None = None,
+) -> Any:
+    """Lê e decodifica um objeto JSON privado do bucket configurado.
+
+    A função não lista o bucket e não altera ACLs. Uma chave ausente é
+    distinguida dos demais erros para que callers possam tratá-la como miss.
+    """
+    key = _required_text(key, "key")
+    bucket = _configured_bucket()
+    try:
+        client = s3_client or boto3.client("s3")
+        response = client.get_object(Bucket=bucket, Key=key)
+        body = response["Body"].read()
+    except ClientError as exc:
+        code = str(exc.response.get("Error", {}).get("Code", ""))
+        if code in {"NoSuchKey", "404", "NotFound"}:
+            raise S3ObjectNotFoundError(
+                f"Objeto S3 não encontrado em s3://{bucket}/{key}."
+            ) from exc
+        raise S3StorageError(
+            f"Falha ao ler objeto JSON em s3://{bucket}/{key}."
+        ) from exc
+    except (BotoCoreError, KeyError, AttributeError, OSError) as exc:
+        raise S3StorageError(
+            f"Falha ao ler objeto JSON em s3://{bucket}/{key}."
+        ) from exc
+    try:
+        return json.loads(body)
+    except (TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise S3StorageError(
+            f"Objeto em s3://{bucket}/{key} não contém JSON válido."
+        ) from exc
+
+
+def put_json(
+    key: str,
+    data: Any,
+    *,
+    s3_client: Any | None = None,
+) -> None:
+    """Grava atomicamente um pequeno documento JSON em uma chave conhecida."""
+    key = _required_text(key, "key")
+    bucket = _configured_bucket()
+    body = _json_body(data, "de índice")
+    _put_json(bucket, key, body, s3_client, "índice de cache")
 
 
 def save_raw_json(
