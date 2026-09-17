@@ -16,6 +16,7 @@
   <script src="js/spotify-history.js" defer></script>
   <script src="js/spotify-orbit.js" defer></script>
   <script src="js/discography.js" defer></script>
+  <script src="js/story-mode.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -79,6 +80,11 @@
         <button id="new-search" type="button">Nova busca <span>⌕</span></button>
       </nav>
 
+      <section class="story-entry" aria-labelledby="story-entry-title">
+        <div><p>Experiência editorial</p><h3 id="story-entry-title">Story Mode</h3><span>Uma trajetória em registros.</span></div>
+        <button id="story-mode-open" type="button" aria-expanded="false" aria-controls="story-mode">Explorar a história <b aria-hidden="true">→</b></button>
+      </section>
+
       <section class="overview reveal" id="visao-geral" aria-labelledby="overview-title">
         <div class="section-index"><span>01</span><i></i><p>Visão geral</p></div>
         <div><h3 id="overview-title">Uma identidade<br>em frequências.</h3><dl class="facts" aria-label="Informações do artista">
@@ -109,6 +115,11 @@
         <small>Informações reunidas de múltiplas fontes musicais.</small>
       </aside><div class="panel-backdrop" id="panel-backdrop"></div>
     </article>
+
+    <section class="story-mode is-hidden" id="story-mode" aria-hidden="true" aria-labelledby="story-mode-title" aria-modal="true" role="dialog">
+      <header class="story-mode__bar"><a class="brand" href="#inicio" tabindex="-1">SoundScope</a><p data-story-progress aria-live="polite"></p><button data-story-close type="button">Fechar <span aria-hidden="true">×</span></button></header>
+      <div data-story-content></div>
+    </section>
 
     <section class="insights is-hidden" id="meu-soundscope" aria-labelledby="insights-title">
       <header class="insights-hero">

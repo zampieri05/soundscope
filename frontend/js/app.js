@@ -10,7 +10,7 @@ const elements = {
   name: $("#artist-name"), meta: $("#artist-meta"), formed: $("#artist-formed"), genre: $("#artist-genre"), country: $("#artist-country"), year: $("#artist-year"),
   biography: $("#artist-biography"), biographyWrap: $("#biography-wrap"), readMore: $("#read-more"), members: $("#artist-members"), membersSection: $("#integrantes"),
   membersNav: $("#members-nav"), albums: $("#artist-albums"), albumsSection: $("#discografia"), albumsNav: $("#albums-nav"), range: $("#timeline-range"),
-  dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap"), sourceNames: $("#source-names"), albumsLoadMore: $("#albums-load-more")
+  dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap"), sourceNames: $("#source-names"), albumsLoadMore: $("#albums-load-more"), storyOpen: $("#story-mode-open"), storyMode: $("#story-mode")
 };
 let requestInProgress = false;
 let spotifySession = null;
@@ -47,6 +47,7 @@ function renderArtist(payload) {
   renderMembers(Array.isArray(artist.members) ? artist.members : []);
   renderAlbums(Array.isArray(artist.albums) ? artist.albums : []);
   renderSourceIds(artist.source_ids, payload.metadata?.sources);
+  storyController?.setArtist(artist);
   elements.image.src = artist.image_url || PLACEHOLDER_IMAGE;
   elements.image.alt = artist.image_url ? `Foto de ${artist.name}` : `Imagem de ${artist.name} indisponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} indisponível`; };
@@ -214,6 +215,12 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
 initializeReveal();
+
+const storyController = window.SoundScopeStoryMode?.mount(elements.storyMode, {
+  reducedMotion: window.matchMedia("(prefers-reduced-motion:reduce)").matches,
+  onSpotify: (album, button, output) => lookupSpotifyAlbum({ title: album.title, year: album.year }, button, output)
+});
+elements.storyOpen.addEventListener("click", () => storyController?.open(elements.storyOpen));
 
 const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status"), insights: $("#meu-soundscope"), insightsNav: $("#insights-nav"), profile: $("#spotify-profile"), profileImage: $("#spotify-profile-image"), profileName: $("#spotify-profile-name"), insightsStatus: $("#insights-status"), artists: $("#top-artists"), tracks: $("#top-tracks"), history: $("#spotify-history"), historyStatus: $("#history-status"), historyRefresh: $("#history-refresh"), orbit: $("#minha-orbita"), orbitEnter: $("#orbit-enter"), orbitClose: $("#orbit-close") };
 let insightsRequest = 0;
