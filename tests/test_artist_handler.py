@@ -8,6 +8,7 @@ from unittest.mock import patch
 from src.handlers.artist import lambda_handler
 from src.models import EnrichedArtist
 from src.services.theaudiodb.client import ArtistNotFoundError
+from src.services.musicbrainz.client import MusicBrainzError
 
 PIPELINE = "src.handlers.artist.process_enriched_artist"
 
@@ -137,6 +138,17 @@ class ArtistLambdaHandlerTests(unittest.TestCase):
         body = self.assert_proxy_response(response, 500)
         self.assertEqual(body, {"error": "internal server error"})
         self.assertNotIn("secret", response["body"])
+
+    @patch(PIPELINE, side_effect=MusicBrainzError("temporary upstream detail"))
+    def test_all_sources_unavailable_returns_safe_502(self, pipeline):
+        response = lambda_handler(
+            {"pathParameters": {"artist_name": "Projeto Sola"}}, None
+        )
+        self.assertEqual(
+            self.assert_proxy_response(response, 502),
+            {"error": "upstream service unavailable"},
+        )
+        self.assertNotIn("temporary upstream detail", response["body"])
 
 
 if __name__ == "__main__":

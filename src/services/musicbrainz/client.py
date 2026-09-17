@@ -1,6 +1,7 @@
 """Cliente HTTP simples para extrair dados RAW do MusicBrainz."""
 
 import os
+import logging
 import threading
 import time
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ BASE_URL = "https://musicbrainz.org/ws/2"
 DEFAULT_TIMEOUT_SECONDS = 10
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
 MAX_REQUEST_ATTEMPTS = 3
-MAX_RETRY_DELAY_SECONDS = 60.0
+MAX_RETRY_DELAY_SECONDS = 5.0
 RELEASE_GROUP_PAGE_SIZE = 100
 MAX_RELEASE_GROUP_PAGES = 20
 TRANSIENT_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
@@ -22,6 +23,7 @@ DEFAULT_USER_AGENT = "SoundScope/1.0 (https://github.com/zampieri05/soundscope)"
 
 _rate_limit_lock = threading.Lock()
 _last_request_started_at = 0.0
+logger = logging.getLogger(__name__)
 
 
 class MusicBrainzError(Exception):
@@ -63,7 +65,9 @@ def _retry_delay(response: requests.Response, retry_number: int) -> float:
     return float(2 ** (retry_number - 1))
 
 
-def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
+def _get_json(
+    url: str, params: dict[str, str], *, operation: str, subject: str
+) -> dict[str, Any]:
     """Executa uma requisição identificada e devolve seu documento JSON."""
     user_agent = os.getenv("MUSICBRAINZ_USER_AGENT", DEFAULT_USER_AGENT).strip()
     if not user_agent:
@@ -72,6 +76,10 @@ def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
     response: requests.Response | None = None
     for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
         _wait_for_rate_limit()
+        logger.info(
+            "MusicBrainz request operation=%s subject=%s attempt=%d/%d",
+            operation, subject, attempt, MAX_REQUEST_ATTEMPTS,
+        )
         response = None
         try:
             response = requests.get(
@@ -83,6 +91,21 @@ def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
             response.raise_for_status()
             break
         except requests.Timeout as error:
+            if attempt < MAX_REQUEST_ATTEMPTS:
+                delay = min(float(2 ** (attempt - 1)), MAX_RETRY_DELAY_SECONDS)
+                logger.warning(
+                    "MusicBrainz timeout; retrying operation=%s subject=%s "
+                    "attempt=%d/%d delay=%.1fs error_type=%s",
+                    operation, subject, attempt, MAX_REQUEST_ATTEMPTS, delay,
+                    type(error).__name__,
+                )
+                time.sleep(delay)
+                continue
+            logger.error(
+                "MusicBrainz timeout exhausted operation=%s subject=%s attempts=%d "
+                "error_type=%s",
+                operation, subject, MAX_REQUEST_ATTEMPTS, type(error).__name__,
+            )
             raise MusicBrainzError(
                 "A requisição ao MusicBrainz excedeu o tempo limite."
             ) from error
@@ -93,8 +116,21 @@ def _get_json(url: str, params: dict[str, str]) -> dict[str, Any]:
                 status_code in TRANSIENT_HTTP_STATUS_CODES
                 and attempt < MAX_REQUEST_ATTEMPTS
             ):
-                time.sleep(_retry_delay(error_response, attempt))
+                delay = _retry_delay(error_response, attempt)
+                logger.warning(
+                    "MusicBrainz transient HTTP status; retrying operation=%s "
+                    "subject=%s status=%s attempt=%d/%d delay=%.1fs",
+                    operation, subject, status_code, attempt,
+                    MAX_REQUEST_ATTEMPTS, delay,
+                )
+                time.sleep(delay)
                 continue
+            logger.error(
+                "MusicBrainz HTTP failure operation=%s subject=%s status=%s "
+                "attempt=%d/%d transient=%s",
+                operation, subject, status_code, attempt, MAX_REQUEST_ATTEMPTS,
+                status_code in TRANSIENT_HTTP_STATUS_CODES,
+            )
             raise MusicBrainzError(
                 f"Erro HTTP ao consultar o MusicBrainz: {error}"
             ) from error
@@ -129,6 +165,8 @@ def search_artist(artist_name: str) -> dict[str, Any]:
     data = _get_json(
         f"{BASE_URL}/artist/",
         params={"query": name, "fmt": "json"},
+        operation="artist_search",
+        subject=name,
     )
 
     if "artists" not in data or not isinstance(data["artists"], list):
@@ -150,6 +188,8 @@ def get_artist_details(mbid: str) -> dict[str, Any]:
             "inc": "aliases+genres+tags+artist-rels",
             "fmt": "json",
         },
+        operation="artist_details",
+        subject=artist_mbid,
     )
 
     if not isinstance(data.get("id"), str) or not isinstance(data.get("name"), str):
@@ -177,6 +217,8 @@ def get_release_groups(mbid: str) -> dict[str, Any]:
             f"{BASE_URL}/release-group/",
             params={"artist": artist_mbid, "limit": str(RELEASE_GROUP_PAGE_SIZE),
                     "offset": str(offset), "fmt": "json"},
+            operation="release_groups",
+            subject=artist_mbid,
         )
         page = data.get("release-groups")
         if not isinstance(page, list):

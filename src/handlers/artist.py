@@ -77,8 +77,11 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     except _NOT_FOUND_ERRORS:
         logger.info("Artist not found: %s", artist_name)
         return _response(404, {"error": "artist not found"})
-    except (MusicBrainzError, TheAudioDBError):
-        logger.exception("Upstream unavailable while processing %r", artist_name)
+    except (MusicBrainzError, TheAudioDBError) as error:
+        logger.error(
+            "Upstream unavailable while processing artist=%r error_type=%s",
+            artist_name, type(error).__name__,
+        )
         return _response(502, {"error": "upstream service unavailable"})
     except Exception:
         logger.exception("Unexpected error while processing artist %r", artist_name)

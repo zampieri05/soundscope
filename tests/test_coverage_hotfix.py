@@ -65,6 +65,20 @@ class ReleaseGroupPaginationTests(unittest.TestCase):
         self.assertEqual(len(result["release-groups"]), 100)
         self.assertEqual(request.call_count, 2)
 
+    @patch("src.services.musicbrainz.client._get_json")
+    def test_later_page_failure_never_returns_a_partial_catalog(self, request):
+        from src.services.musicbrainz.client import MusicBrainzError
+        request.side_effect = [
+            {"release-group-count": 200,
+             "release-groups": [{"id": str(i)} for i in range(100)]},
+            MusicBrainzError("temporarily unavailable"),
+        ]
+
+        with self.assertRaises(MusicBrainzError):
+            get_release_groups("artist")
+
+        self.assertEqual(request.call_count, 2)
+
 
 class CompleteDiscographyTests(unittest.TestCase):
     def test_sizes_are_not_domain_capped(self):
@@ -140,6 +154,36 @@ class ResilientPipelineTests(unittest.TestCase):
         from src.pipeline.ingestion.errors import UsableArtistNotFoundError
         with self.assertRaises(UsableArtistNotFoundError):
             self._run([TNotFound("none")], [MNotFound("none")])
+
+    def test_both_sources_unavailable_preserves_upstream_failure(self):
+        from src.services.theaudiodb.client import TheAudioDBError
+        from src.services.musicbrainz.client import MusicBrainzError
+        with self.assertRaises(MusicBrainzError):
+            self._run([TheAudioDBError("down")], [MusicBrainzError("down")])
+
+    def test_upstream_failure_plus_absence_is_not_misreported_as_404(self):
+        from src.services.theaudiodb.client import TheAudioDBError
+        from src.services.musicbrainz.client import ArtistNotFoundError
+        with self.assertRaises(TheAudioDBError):
+            self._run([TheAudioDBError("down")], [ArtistNotFoundError("none")])
+
+    def test_release_group_failure_keeps_profile_and_discards_mb_catalog(self):
+        from src.pipeline.processing.enriched import process_enriched_artist
+        from src.services.musicbrainz.client import MusicBrainzError
+        tadb_raw = {"artists": [{"idArtist": "ta", "strArtist": "Beyoncé"}]}
+        mb_search = {"artists": [{"id": "mb", "name": "Beyoncé", "score": 100}]}
+        with patch("src.pipeline.processing.enriched.theaudiodb_client.search_artist", return_value=tadb_raw), \
+             patch("src.pipeline.processing.enriched.theaudiodb_client.search_albums", side_effect=AlbumsNotFoundError("none")), \
+             patch("src.pipeline.processing.enriched.musicbrainz_client.search_artist", return_value=mb_search), \
+             patch("src.pipeline.processing.enriched.musicbrainz_client.get_artist_details", return_value={"id": "mb", "name": "Beyoncé"}), \
+             patch("src.pipeline.processing.enriched.musicbrainz_client.get_release_groups", side_effect=MusicBrainzError("503")), \
+             patch("src.pipeline.processing.enriched.save_raw_json", return_value="raw"), \
+             patch("src.pipeline.processing.enriched.save_processed_json", return_value="processed"), \
+             patch("src.pipeline.processing.enriched.save_enriched_artist"):
+            result = process_enriched_artist("Beyonce")
+
+        self.assertEqual(result["sources"], {"theaudiodb": True, "musicbrainz": True})
+        self.assertEqual(result["artist"].albums, [])
 
     def test_country_conflict_never_builds_hybrid(self):
         from src.pipeline.processing.enriched import _same_identity
