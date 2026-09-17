@@ -166,3 +166,22 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
 initializeReveal();
+
+const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status") };
+function renderSpotify(state, session) {
+  const connected = state === "connected";
+  spotifyElements.connect.classList.toggle("is-hidden", connected); spotifyElements.disconnect.classList.toggle("is-hidden", !connected);
+  spotifyElements.connect.disabled = state === "redirecting" || state === "processing";
+  spotifyElements.connect.textContent = state === "redirecting" ? "Conectando..." : "Conectar Spotify";
+  spotifyElements.status.textContent = connected ? `Spotify conectado · ${session.user.displayName}` : ({ processing: "Finalizando conexão...", expired: "Sua sessão do Spotify expirou. Conecte novamente.", error: "Não foi possível conectar ao Spotify." }[state] || "");
+}
+async function initializeSpotify() {
+  const spotify = window.SoundScopeSpotify; if (!spotify) return;
+  let session = spotify.getSession();
+  if (session && spotify.isExpired(session)) { spotify.disconnect(); renderSpotify("expired"); session = null; } else if (session) renderSpotify("connected", session);
+  const callback = spotify.parseCallback(window.location.search);
+  if (callback.code || callback.error || callback.state) { renderSpotify("processing"); try { session = await spotify.handleCallback(); renderSpotify("connected", session); } catch (_) { renderSpotify("error"); } }
+  spotifyElements.connect.addEventListener("click", async () => { renderSpotify("redirecting"); try { await spotify.begin(); } catch (_) { renderSpotify("error"); } });
+  spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); renderSpotify("disconnected"); });
+}
+initializeSpotify();

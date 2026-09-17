@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <script src="js/spotify-auth.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -17,7 +18,12 @@
   <header class="topbar">
     <a class="brand" href="#inicio" aria-label="SoundScope, início"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a>
     <nav aria-label="Navegação principal"><a href="#inicio">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a></nav>
-    <button class="text-button" id="nav-search" type="button">Buscar <span aria-hidden="true">↗</span></button>
+    <div class="topbar-actions">
+      <button class="spotify-button" id="spotify-connect" type="button" aria-describedby="spotify-status">Conectar Spotify</button>
+      <button class="spotify-disconnect is-hidden" id="spotify-disconnect" type="button">Desconectar Spotify</button>
+      <button class="text-button" id="nav-search" type="button">Buscar <span aria-hidden="true">↗</span></button>
+    </div>
+    <p class="spotify-status" id="spotify-status" role="status" aria-live="polite"></p>
   </header>
 
   <main id="conteudo">
