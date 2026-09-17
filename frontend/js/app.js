@@ -10,7 +10,7 @@ const elements = {
   name: $("#artist-name"), meta: $("#artist-meta"), formed: $("#artist-formed"), genre: $("#artist-genre"), country: $("#artist-country"), year: $("#artist-year"),
   biography: $("#artist-biography"), biographyWrap: $("#biography-wrap"), readMore: $("#read-more"), members: $("#artist-members"), membersSection: $("#integrantes"),
   membersNav: $("#members-nav"), albums: $("#artist-albums"), albumsSection: $("#discografia"), albumsNav: $("#albums-nav"), range: $("#timeline-range"),
-  dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap")
+  dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap"), sourceNames: $("#source-names"), albumsLoadMore: $("#albums-load-more")
 };
 let requestInProgress = false;
 let spotifySession = null;
@@ -46,7 +46,7 @@ function renderArtist(payload) {
   renderBiography(artist.biography);
   renderMembers(Array.isArray(artist.members) ? artist.members : []);
   renderAlbums(Array.isArray(artist.albums) ? artist.albums : []);
-  renderSourceIds(artist.source_ids);
+  renderSourceIds(artist.source_ids, payload.metadata?.sources);
   elements.image.src = artist.image_url || PLACEHOLDER_IMAGE;
   elements.image.alt = artist.image_url ? `Foto de ${artist.name}` : `Imagem de ${artist.name} indisponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} indisponível`; };
@@ -88,36 +88,53 @@ function albumPlaceholder(title) {
   fallback.append(label, name); return fallback;
 }
 
-function renderAlbums(albums) {
-  const sorted = albums.map((album, index) => ({ album, index })).sort((a, b) => {
-    const first = Number.parseInt(a.album.year, 10); const second = Number.parseInt(b.album.year, 10);
-    if (Number.isNaN(first) && Number.isNaN(second)) return a.index - b.index;
-    if (Number.isNaN(first)) return 1; if (Number.isNaN(second)) return -1;
-    return first - second || a.index - b.index;
-  }).map(({ album }) => album);
-  const visible = sorted.length > 0;
-  elements.albumsSection.classList.toggle("is-hidden", !visible);
-  elements.albumsNav.classList.toggle("is-hidden", !visible);
-  const years = sorted.map((album) => Number.parseInt(album.year, 10)).filter(Number.isFinite);
-  elements.range.textContent = years.length ? `${Math.min(...years)} → ${Math.max(...years)}` : "Lançamentos em ordem cronológica";
-  elements.albums.replaceChildren(...sorted.map((album) => {
-    const card = document.createElement("article"); card.className = "album";
-    const visual = document.createElement("div"); visual.className = "album__visual";
-    const fallback = albumPlaceholder(album.title); visual.append(fallback);
-    if (album.cover_url) {
-      const image = document.createElement("img"); image.src = album.cover_url; image.alt = `Capa de ${album.title || "álbum sem título"}`; image.loading = "lazy"; image.decoding = "async";
-      image.onload = () => fallback.remove(); image.onerror = () => image.remove(); visual.append(image);
-    }
-    const year = document.createElement("p"); year.className = "album__year"; year.textContent = album.year || "Ano não informado";
-    const title = document.createElement("h4"); title.textContent = album.title || "Título não informado";
-    const spotifyResult = document.createElement("div"); spotifyResult.className = "album__spotify"; spotifyResult.setAttribute("aria-live", "polite");
-    card.tabIndex = 0; card.setAttribute("role", "button"); card.setAttribute("aria-label", `${album.title || "Álbum"}. Consultar no Spotify`);
-    const select = () => lookupSpotifyAlbum(album, card, spotifyResult);
-    card.addEventListener("click", select); card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
-    card.append(visual, year, title, spotifyResult); return card;
-  }));
+const ALBUM_PAGE_SIZE = 20;
+let pendingAlbums = [];
+let visibleAlbumCount = 0;
+
+function albumCategory(album) {
+  return window.SoundScopeDiscography.category(album);
 }
 
+function createAlbumCard(album) {
+  const card = document.createElement("article"); card.className = "album";
+  const visual = document.createElement("div"); visual.className = "album__visual";
+  const fallback = albumPlaceholder(album.title); visual.append(fallback);
+  if (album.cover_url) {
+    const image = document.createElement("img"); image.src = album.cover_url; image.alt = `Capa de ${album.title || "lançamento sem título"}`; image.loading = "lazy"; image.decoding = "async";
+    image.onload = () => fallback.remove(); image.onerror = () => image.remove(); visual.append(image);
+  }
+  const year = document.createElement("p"); year.className = "album__year"; year.textContent = album.year || "Ano não informado";
+  const title = document.createElement("h4"); title.textContent = album.title || "Título não informado";
+  const type = document.createElement("p"); type.className = "album__type"; type.textContent = albumCategory(album);
+  const spotifyResult = document.createElement("div"); spotifyResult.className = "album__spotify"; spotifyResult.setAttribute("aria-live", "polite");
+  card.tabIndex = 0; card.setAttribute("role", "button"); card.setAttribute("aria-label", `${album.title || "Lançamento"}. Consultar no Spotify`);
+  const select = () => lookupSpotifyAlbum(album, card, spotifyResult);
+  card.addEventListener("click", select); card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
+  card.append(visual, year, title, type, spotifyResult); return card;
+}
+
+function loadMoreAlbums() {
+  const next = window.SoundScopeDiscography.page(pendingAlbums, visibleAlbumCount, ALBUM_PAGE_SIZE);
+  elements.albums.append(...next.map(createAlbumCard));
+  visibleAlbumCount += next.length;
+  elements.albumsLoadMore.classList.toggle("is-hidden", visibleAlbumCount >= pendingAlbums.length);
+  elements.albumsLoadMore.setAttribute("aria-label", `Carregar mais lançamentos. ${pendingAlbums.length - visibleAlbumCount} restantes`);
+}
+
+function renderAlbums(albums) {
+  pendingAlbums = albums.map((album, index) => ({ album, index })).sort((a, b) => {
+    const category = albumCategory(a.album).localeCompare(albumCategory(b.album), "pt-BR");
+    const first = Number.parseInt(a.album.year, 10); const second = Number.parseInt(b.album.year, 10);
+    return category || (Number.isNaN(first) ? 1 : Number.isNaN(second) ? -1 : first - second) || a.index - b.index;
+  }).map(({ album }) => album);
+  visibleAlbumCount = 0; elements.albums.replaceChildren();
+  const visible = pendingAlbums.length > 0;
+  elements.albumsSection.classList.toggle("is-hidden", !visible); elements.albumsNav.classList.toggle("is-hidden", !visible);
+  const years = pendingAlbums.map((album) => Number.parseInt(album.year, 10)).filter(Number.isFinite);
+  elements.range.textContent = years.length ? `${Math.min(...years)} → ${Math.max(...years)}` : "Lançamentos organizados por tipo";
+  if (visible) loadMoreAlbums(); else elements.albumsLoadMore.classList.add("is-hidden");
+}
 async function lookupSpotifyAlbum(album, card, output) {
   if (card.dataset.spotifyState === "loading" || card.dataset.spotifyState === "done") return;
   if (!spotifySession) { output.textContent = "Conecte o Spotify para ouvir este álbum."; card.dataset.spotifyState = "disconnected"; return; }
@@ -139,9 +156,11 @@ async function lookupSpotifyAlbum(album, card, output) {
   }
 }
 
-function renderSourceIds(sourceIds) {
+function renderSourceIds(sourceIds, sources) {
   const entries = sourceIds && typeof sourceIds === "object" ? Object.entries(sourceIds).filter(([, value]) => value) : [];
   elements.sourceIdsWrap.classList.toggle("is-hidden", entries.length === 0);
+  const active = sources && typeof sources === "object" ? Object.entries(sources).filter(([, used]) => used).map(([name]) => name) : entries.map(([name]) => name);
+  elements.sourceNames.textContent = active.join(" + ") || "Fonte não informada";
   elements.sourceIds.textContent = entries.map(([source, id]) => `${source}: ${id}`).join("\n");
 }
 
@@ -186,6 +205,7 @@ function initializeReveal() {
 }
 
 elements.form.addEventListener("submit", (event) => { event.preventDefault(); const name = elements.input.value.trim(); if (!name) { elements.message.textContent = "Digite o nome de um artista ou banda para começar."; elements.input.focus(); return; } searchArtist(name); });
+elements.albumsLoadMore.addEventListener("click", loadMoreAlbums);
 elements.readMore.addEventListener("click", () => { const collapsed = elements.biographyWrap.classList.toggle("is-collapsed"); elements.readMore.setAttribute("aria-expanded", String(!collapsed)); elements.readMore.innerHTML = collapsed ? "Ler mais <span>↓</span>" : "Mostrar menos <span>↑</span>"; });
 elements.dataTrigger.addEventListener("click", () => toggleDataPanel()); elements.dataClose.addEventListener("click", () => toggleDataPanel(false)); elements.backdrop.addEventListener("click", () => toggleDataPanel(false));
 $("#nav-search").addEventListener("click", focusSearch); $("#new-search").addEventListener("click", focusSearch); $("#retry-search").addEventListener("click", focusSearch);

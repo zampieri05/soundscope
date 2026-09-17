@@ -12,9 +12,11 @@ from src.pipeline.processing import (
 )
 from src.services.musicbrainz.client import (
     ArtistNotFoundError as MusicBrainzArtistNotFoundError,
+    MusicBrainzError,
 )
 from src.services.theaudiodb.client import (
     ArtistNotFoundError as TheAudioDBArtistNotFoundError,
+    TheAudioDBError,
 )
 
 
@@ -75,6 +77,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     except _NOT_FOUND_ERRORS:
         logger.info("Artist not found: %s", artist_name)
         return _response(404, {"error": "artist not found"})
+    except (MusicBrainzError, TheAudioDBError):
+        logger.exception("Upstream unavailable while processing %r", artist_name)
+        return _response(502, {"error": "upstream service unavailable"})
     except Exception:
         logger.exception("Unexpected error while processing artist %r", artist_name)
         return _response(500, {"error": "internal server error"})

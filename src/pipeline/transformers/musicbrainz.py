@@ -95,17 +95,14 @@ def transform_musicbrainz_members(raw_data: Any) -> list[ArtistMember]:
 
 
 def transform_musicbrainz_albums(raw_data: Any) -> list[EnrichedAlbum]:
-    """Normaliza release groups de álbuns retornados pelo MusicBrainz."""
+    """Normaliza todos os tipos de release group, sem inventar capas ou tipos."""
     if not isinstance(raw_data, dict) or not isinstance(
         raw_data.get("release-groups"), list
     ):
         raise TransformationError("O campo 'release-groups' deve ser uma lista.")
     result: list[EnrichedAlbum] = []
     for group in raw_data["release-groups"]:
-        if not isinstance(group, dict) or group.get("primary-type") not in (
-            None,
-            "Album",
-        ):
+        if not isinstance(group, dict):
             continue
         title, group_id = _optional_text(group.get("title")), _optional_text(
             group.get("id")
@@ -114,13 +111,23 @@ def transform_musicbrainz_albums(raw_data: Any) -> list[EnrichedAlbum]:
             continue
         date = _optional_text(group.get("first-release-date"))
         year = date[:4] if date and date[:4].isdigit() else None
+        primary_type = _optional_text(group.get("primary-type"))
+        raw_secondary = group.get("secondary-types")
+        secondary_types = [
+            value.strip()
+            for value in raw_secondary
+            if isinstance(value, str) and value.strip()
+        ] if isinstance(raw_secondary, list) else []
         result.append(
             EnrichedAlbum(
                 title,
                 year,
                 None,
                 group_id,
-                f"https://coverartarchive.org/release-group/{group_id}/front-500",
+                None,
+                primary_type,
+                secondary_types,
+                date,
             )
         )
     return result

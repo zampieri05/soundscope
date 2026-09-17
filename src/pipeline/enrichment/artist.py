@@ -1,6 +1,8 @@
 """Regras determinísticas para enriquecer artistas normalizados."""
 
 from typing import TypeVar
+import re
+import unicodedata
 
 from src.models import (
     ArtistMember,
@@ -15,8 +17,10 @@ T = TypeVar("T")
 
 
 def _comparable_name(name: str) -> str:
-    """Ignora caixa e espaços extras, sem tentar fazer fuzzy matching."""
-    return " ".join(name.split()).casefold()
+    """Normaliza Unicode, diacríticos, caixa, pontuação básica e espaços."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    plain = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(re.sub(r"[^\w]+", " ", plain.casefold()).split())
 
 
 def _prefer(preferred: T | None, fallback: T | None) -> T | None:
@@ -83,8 +87,27 @@ def enrich_artist(
     )
 
 
+def partial_artist(
+    artist: NormalizedArtist,
+    albums: list[NormalizedAlbum] | list[EnrichedAlbum] | None = None,
+    members: list[ArtistMember] | None = None,
+) -> EnrichedArtist:
+    """Converte uma única fonte em perfil parcial sem fabricar campos."""
+    enriched_albums = (
+        _merge_albums(albums, [])  # type: ignore[arg-type]
+        if artist.source == "theaudiodb"
+        else list(albums or [])
+    )
+    return EnrichedArtist(
+        artist.name, artist.country, artist.genre, artist.formed_year,
+        artist.biography, artist.image_url,
+        {artist.source: artist.source_artist_id}, list(members or []),
+        enriched_albums,
+    )
+
+
 def _album_key(title: str, year: str | None) -> tuple[str, str]:
-    return (" ".join(title.split()).casefold(), year or "")
+    return (_comparable_name(title), year or "")
 
 
 def _merge_albums(
@@ -92,26 +115,31 @@ def _merge_albums(
     musicbrainz_albums: list[EnrichedAlbum],
 ) -> list[EnrichedAlbum]:
     """Une catálogos, mantendo metadados do TheAudioDB e IDs complementares."""
-    merged: dict[tuple[str, str], EnrichedAlbum] = {}
+    merged: dict[tuple[str, ...], EnrichedAlbum] = {}
     for album in theaudiodb_albums:
         item = EnrichedAlbum(
             album.name, album.release_year, album.source_album_id, None, album.cover_url
         )
-        merged[_album_key(item.title, item.year)] = item
+        merged[("tadb", album.source_album_id)] = item
     for album in musicbrainz_albums:
-        key = _album_key(album.title, album.year)
-        current = merged.get(key)
+        exact_key = ("mb", album.musicbrainz_release_group_id) if album.musicbrainz_release_group_id else None
+        fallback_key = ("metadata",) + _album_key(album.title, album.year)
+        current_key = next((key for key, value in merged.items()
+                            if not value.musicbrainz_release_group_id
+                            and _album_key(value.title, value.year) == _album_key(album.title, album.year)), None)
+        current = merged.get(current_key) if current_key else None
         if current:
-            merged[key] = EnrichedAlbum(
+            merged[current_key] = EnrichedAlbum(
                 current.title,
                 current.year,
                 current.album_id,
                 album.musicbrainz_release_group_id,
                 current.cover_url or album.cover_url,
+                album.primary_type, album.secondary_types, album.first_release_date,
             )
         else:
-            merged[key] = album
+            merged[exact_key or fallback_key] = album
     return sorted(
         merged.values(),
         key=lambda item: (item.year is None, item.year or "", item.title.casefold()),
-    )[:20]
+    )

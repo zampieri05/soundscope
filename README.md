@@ -679,7 +679,7 @@ continuam para fases futuras; a API Gateway pública e a primeira versão do fro
 ## Artist Profile enriquecido
 
 O pipeline entrega agora um dossiê completo e retrocompatível, incluindo biografia,
-integrantes e até 20 álbuns em ordem cronológica (ano, identificadores e capa):
+integrantes e todos os lançamentos válidos coletados (data, identificadores e capa quando confirmada):
 
 ```text
 TheAudioDB + MusicBrainz
@@ -697,11 +697,10 @@ TheAudioDB + MusicBrainz
 
 O TheAudioDB é a fonte prioritária de biografia (português, com fallback para
 inglês), gênero, imagem, IDs e catálogo/capas. O MusicBrainz fornece país, período,
-relações de integrantes e release groups complementares. Capas complementares são
-endereçadas pelo Cover Art Archive através do ID do release group. Dados não
-informados permanecem `null` ou listas vazias; nenhum conteúdo biográfico é gerado.
-Relações e catálogos dependem da cobertura editorial das APIs e uma URL do Cover Art
-Archive pode não possuir imagem, situação em que o frontend usa seu placeholder.
+relações de integrantes e release groups complementares. O MusicBrainz não confirma capas nesta integração, portanto esses itens mantêm
+`cover_url=null` e o frontend usa seu placeholder. Dados não informados permanecem
+`null` ou listas vazias; nenhum conteúdo biográfico é gerado. Relações e catálogos
+dependem da cobertura editorial das APIs.
 
 ## Spotify Integration
 
@@ -720,3 +719,47 @@ Resultados confirmados, ausentes e ambíguos ficam em `sessionStorage`, sem toke
 Nenhum outro scope é solicitado além de `user-top-read`. E-mail, playlists, histórico, biblioteca e reprodução não são solicitados. `code_verifier`, `state`, access token, expiração e o perfil mínimo ficam somente em `sessionStorage`; fechar a aba encerra a sessão. O refresh token não é persistido nem utilizado nesta fase.
 
 Para testar localmente, sirva `frontend/` via HTTP, mas observe que o fluxo retorna à URI de produção cadastrada. Em Development Mode, a conta usada no teste precisa estar autorizada no app pelo Spotify Dashboard. O teste completo também exige que a URI acima esteja na allowlist de Redirect URIs. Execute os testes puros com `node --test tests/spotify-auth.test.js tests/spotify-catalog.test.js tests/spotify-insights.test.js`.
+
+## Hotfix de cobertura: busca e discografia
+
+A busca de artista consulta TheAudioDB e MusicBrainz de forma independente. Se uma
+fonte não encontrar o artista ou estiver temporariamente indisponível, a resposta
+continua com a outra fonte quando ela produzir um resultado confiável; `404` fica
+reservado para ausência nas duas fontes. `metadata.sources` informa exatamente
+quais fontes contribuíram. Um perfil somente MusicBrainz não é escrito na tabela
+DynamoDB atual, cuja chave exige o ID TheAudioDB; ele continua disponível na
+resposta e na camada processed, sem migração ou alteração de infraestrutura.
+
+A seleção MusicBrainz exige correspondência exata do nome canônico ou alias após
+normalização Unicode, de caixa, espaços, pontuação básica e diacríticos. Ela ordena
+pelo score oficial da busca (mínimo 80), correspondência canônica e sinais
+editoriais já retornados (`type`, `country`, `disambiguation`). Esse critério é
+determinístico e não cria um “score SoundScope”. Empates indistinguíveis e conflito
+de país impedem o perfil híbrido; nesse caso é preferido um perfil de fonte única.
+
+Release groups são coletados em páginas de 100 usando `offset` e o campo
+`release-group-count`, passando pelo rate limiter e retries existentes. A coleta
+para em página vazia/curta, na contagem declarada ou no teto defensivo de 20 páginas
+(2.000 itens), e deduplica IDs repetidos. A resposta RAW agregada é salva uma única
+vez, portanto páginas nunca sobrescrevem umas às outras. Durante este hotfix, o
+acesso à documentação oficial foi bloqueado pelo proxy do ambiente (HTTP 403); os
+nomes e limites usados são os já sustentados pelo contrato existente do cliente e
+pelos testes. Antes de produção, deve-se reconfirmar o limite máximo de 100, o
+`offset`, `release-group-count` e a política publicada de uma requisição por
+segundo nos links oficiais já citados na seção MusicBrainz.
+
+O domínio não limita mais a discografia a 20 itens. `primary_type`,
+`secondary_types`, `first_release_date` e o ID do release group são opcionais e
+preservados, inclusive para Album, EP, Single, Broadcast e demais tipos reais.
+URLs do Cover Art Archive não são fabricadas: sem confirmação, `cover_url` é
+`null`. A deduplicação prioriza IDs e só usa título/data normalizados de modo
+conservador entre fontes; qualificadores editoriais não são removidos.
+
+No frontend, somente os primeiros 20 lançamentos entram inicialmente no DOM; o
+botão **Carregar mais** acrescenta blocos de 20 sem descartar o catálogo recebido.
+As etiquetas de categoria usam exclusivamente tipos primários/secundários, e capa,
+ano ou tipo ausentes mantêm os fallbacks existentes. O painel de fontes também
+passa a refletir perfis parciais. Discografias excepcionais podem exigir até 20
+chamadas MusicBrainz sequenciais e, pelo rate limit, aproximar ou exceder o timeout
+do navegador de 15 segundos; o timeout não foi aumentado e este risco permanece
+para revisão operacional.

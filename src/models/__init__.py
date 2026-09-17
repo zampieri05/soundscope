@@ -43,6 +43,9 @@ class EnrichedAlbum:
     album_id: str | None = None
     musicbrainz_release_group_id: str | None = None
     cover_url: str | None = None
+    primary_type: str | None = None
+    secondary_types: list[str] = field(default_factory=list)
+    first_release_date: str | None = None
 
 
 @dataclass(frozen=True)

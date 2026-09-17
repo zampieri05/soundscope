@@ -1,141 +1,193 @@
-"""Orquestração multi-source de artistas enriquecidos."""
+"""Orquestração resiliente multi-source de artistas enriquecidos."""
 
 from dataclasses import asdict
 from typing import Any, TypedDict
+import unicodedata
 
 from src.models import EnrichedArtist, NormalizedArtist
-from src.pipeline.enrichment import enrich_artist
+from src.pipeline.enrichment.artist import enrich_artist, partial_artist, _comparable_name
+from src.pipeline.ingestion.errors import UsableArtistNotFoundError
 from src.pipeline.ingestion.theaudiodb import _first_artist_id
 from src.pipeline.transformers import (
-    transform_musicbrainz_albums,
-    transform_musicbrainz_artist,
-    transform_musicbrainz_members,
-    transform_theaudiodb_albums,
+    transform_musicbrainz_albums, transform_musicbrainz_artist,
+    transform_musicbrainz_members, transform_theaudiodb_albums,
     transform_theaudiodb_artist,
 )
 from src.services.musicbrainz import client as musicbrainz_client
+from src.services.musicbrainz.client import MusicBrainzError, ArtistNotFoundError
 from src.services.theaudiodb import client as theaudiodb_client
+from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 
 
-class EnrichedArtistProcessingResult(TypedDict):
-    """Artista enriquecido e rastreabilidade produzidos pelo pipeline."""
-
+class EnrichedArtistProcessingResult(TypedDict, total=False):
     artist: EnrichedArtist
     artist_name: str
-    theaudiodb_artist_id: str
-    musicbrainz_mbid: str
+    theaudiodb_artist_id: str | None
+    musicbrainz_mbid: str | None
     source: str
-    theaudiodb_raw_s3_key: str
-    musicbrainz_raw_s3_key: str
+    sources: dict[str, bool]
+    theaudiodb_raw_s3_key: str | None
+    musicbrainz_raw_s3_key: str | None
     processed_s3_key: str
 
 
+def _candidate_names(candidate: dict[str, Any]) -> set[str]:
+    names = {_comparable_name(candidate.get("name", ""))}
+    aliases = candidate.get("aliases")
+    if isinstance(aliases, list):
+        for alias in aliases:
+            value = alias.get("name") if isinstance(alias, dict) else alias
+            if isinstance(value, str):
+                names.add(_comparable_name(value))
+    return names - {""}
+
+
+def _select_musicbrainz_artist(search_raw: Any, query: str) -> dict[str, Any]:
+    """Escolhe correspondência exata pelo nome/alias e usa o score oficial.
+
+    Não há score SoundScope: candidatos sem nome/alias exatamente equivalente
+    (normalização Unicode) ou com score oficial abaixo de 80 são rejeitados.
+    Empates perfeitos são considerados homônimos ambíguos, salvo se apenas um
+    candidato trouxer disambiguation, país ou tipo para torná-lo mais específico.
+    """
+    artists = search_raw.get("artists") if isinstance(search_raw, dict) else None
+    wanted = _comparable_name(query)
+    eligible: list[dict[str, Any]] = []
+    if isinstance(artists, list):
+        for candidate in artists:
+            if not isinstance(candidate, dict) or wanted not in _candidate_names(candidate):
+                continue
+            score = candidate.get("score")
+            if score is not None and (not isinstance(score, int) or score < 80):
+                continue
+            if isinstance(candidate.get("id"), str) and candidate["id"].strip():
+                eligible.append(candidate)
+    if not eligible:
+        raise ArtistNotFoundError(
+            "A busca do MusicBrainz não retornou correspondência confiável."
+        )
+    eligible.sort(key=lambda item: (
+        -(item.get("score") if isinstance(item.get("score"), int) else 0),
+        0 if _comparable_name(item.get("name", "")) == wanted else 1,
+        -sum(bool(item.get(key)) for key in ("type", "country", "disambiguation")),
+        item["id"],
+    ))
+    if len(eligible) > 1:
+        def rank(item: dict[str, Any]) -> tuple[int, int, int]:
+            return (item.get("score") if isinstance(item.get("score"), int) else 0,
+                    int(_comparable_name(item.get("name", "")) == wanted),
+                    sum(bool(item.get(key)) for key in ("type", "country", "disambiguation")))
+        if rank(eligible[0]) == rank(eligible[1]):
+            raise ArtistNotFoundError(
+                "A busca do MusicBrainz retornou homônimos ambíguos."
+            )
+    return eligible[0]
+
+
+# Compatibilidade para callers/testes antigos; novas chamadas devem informar a consulta.
 def _first_musicbrainz_artist(search_raw: Any) -> dict[str, Any]:
-    """Seleciona deterministicamente o primeiro resultado com nome utilizável."""
-    if isinstance(search_raw, dict) and isinstance(search_raw.get("artists"), list):
-        for artist in search_raw["artists"]:
-            if (
-                isinstance(artist, dict)
-                and isinstance(artist.get("name"), str)
-                and artist["name"].strip()
-            ):
-                return artist
-    raise musicbrainz_client.ArtistNotFoundError(
-        "A busca do MusicBrainz não retornou um artista utilizável."
-    )
+    artists = search_raw.get("artists") if isinstance(search_raw, dict) else None
+    if isinstance(artists, list):
+        for item in artists:
+            if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"].strip():
+                return _select_musicbrainz_artist(search_raw, item["name"])
+    raise ArtistNotFoundError("A busca não retornou artista utilizável.")
 
 
 def _musicbrainz_id(artist: dict[str, Any]) -> str:
-    mbid = artist.get("id")
-    if not isinstance(mbid, str) or not mbid.strip():
-        raise musicbrainz_client.MusicBrainzError(
-            "O resultado do MusicBrainz não contém um MBID utilizável."
-        )
-    return mbid.strip()
+    return artist["id"].strip()
+
+
+def _same_identity(tadb: NormalizedArtist, mb: NormalizedArtist,
+                   search_match: dict[str, Any], details: dict[str, Any]) -> bool:
+    names = _candidate_names(search_match) | _candidate_names(details)
+    if _comparable_name(tadb.name) not in names:
+        return False
+    # Países conflitantes são evidência negativa; ausência não é inventada.
+    if tadb.country and mb.country:
+        left = unicodedata.normalize("NFKC", tadb.country).casefold()
+        right = unicodedata.normalize("NFKC", mb.country).casefold()
+        if left != right and not ({left, right} <= {"usa", "us", "united states"}):
+            return False
+    score = search_match.get("score")
+    return score is None or (isinstance(score, int) and score >= 80)
 
 
 def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
-    """Extrai duas fontes, normaliza, enriquece e persiste o resultado.
+    """Consulta as fontes independentemente e retorna a melhor visão utilizável."""
+    tadb_artist = mb_artist = None
+    tadb_id = mbid = None
+    tadb_key = mb_key = None
+    tadb_albums: list[Any] = []
+    mb_albums: list[Any] = []
+    members: list[Any] = []
+    mb_match: dict[str, Any] = {}
+    mb_details: dict[str, Any] = {}
+    failures: list[Exception] = []
+    extended_catalog = isinstance(getattr(theaudiodb_client, "AlbumsNotFoundError", None), type)
 
-    Cada operação ocorre apenas após a anterior ter sucesso. As exceções das
-    camadas especializadas são propagadas e nenhuma execução parcial é
-    apresentada ao chamador como concluída.
-    """
-    theaudiodb_raw = theaudiodb_client.search_artist(artist_name)
-    theaudiodb_id = _first_artist_id(theaudiodb_raw)
-    theaudiodb_raw_key = save_raw_json(
-        "theaudiodb", theaudiodb_raw, "artists", theaudiodb_id
-    )
-    theaudiodb_artist = transform_theaudiodb_artist(theaudiodb_raw)
-    if not isinstance(theaudiodb_artist, NormalizedArtist):
-        raise TypeError("O transformer do TheAudioDB deve retornar NormalizedArtist.")
-
-    extended_catalog = isinstance(
-        getattr(theaudiodb_client, "AlbumsNotFoundError", None), type
-    )
-    if not extended_catalog:
-        theaudiodb_albums = []
-    else:
+    try:
+        raw = theaudiodb_client.search_artist(artist_name)
+        tadb_id = _first_artist_id(raw)
+        tadb_key = save_raw_json("theaudiodb", raw, "artists", tadb_id)
+        tadb_artist = transform_theaudiodb_artist(raw)
         try:
-            theaudiodb_albums_raw = theaudiodb_client.search_albums(theaudiodb_id)
-            save_raw_json("theaudiodb", theaudiodb_albums_raw, "albums", theaudiodb_id)
-            theaudiodb_albums = transform_theaudiodb_albums(theaudiodb_albums_raw)
-        except theaudiodb_client.AlbumsNotFoundError:
-            theaudiodb_albums = []
+            if not extended_catalog:
+                raise AlbumsNotFoundError("Catálogo indisponível neste caller legado.")
+            albums_raw = theaudiodb_client.search_albums(tadb_id)
+            save_raw_json("theaudiodb", albums_raw, "albums", tadb_id)
+            tadb_albums = transform_theaudiodb_albums(albums_raw)
+        except AlbumsNotFoundError:
+            pass
+    except (TheAudioDBError, UsableArtistNotFoundError) as error:
+        failures.append(error)
 
-    musicbrainz_search_raw = musicbrainz_client.search_artist(artist_name)
-    musicbrainz_match = _first_musicbrainz_artist(musicbrainz_search_raw)
-    mbid = _musicbrainz_id(musicbrainz_match)
-    # A busca também é uma resposta externa utilizada pelo pipeline. Ela é
-    # preservada antes da consulta de detalhes; a chave retornada ao chamador é
-    # a do documento de detalhes efetivamente entregue ao transformer.
-    save_raw_json("musicbrainz", musicbrainz_search_raw, "artists", mbid)
-    musicbrainz_details_raw = musicbrainz_client.get_artist_details(mbid)
-    musicbrainz_raw_key = save_raw_json(
-        "musicbrainz", musicbrainz_details_raw, "artists", mbid
-    )
-    musicbrainz_artist = transform_musicbrainz_artist(musicbrainz_details_raw)
-    if not isinstance(musicbrainz_artist, NormalizedArtist):
-        raise TypeError("O transformer do MusicBrainz deve retornar NormalizedArtist.")
+    try:
+        search_raw = musicbrainz_client.search_artist(artist_name)
+        mb_match = _select_musicbrainz_artist(search_raw, artist_name)
+        mbid = _musicbrainz_id(mb_match)
+        save_raw_json("musicbrainz", search_raw, "artists", mbid)
+        mb_details = musicbrainz_client.get_artist_details(mbid)
+        mb_key = save_raw_json("musicbrainz", mb_details, "artists", mbid)
+        mb_artist = transform_musicbrainz_artist(mb_details)
+        members = transform_musicbrainz_members(mb_details)
+        if extended_catalog:
+            release_raw = musicbrainz_client.get_release_groups(mbid)
+            save_raw_json("musicbrainz", release_raw, "release-groups", mbid)
+            mb_albums = transform_musicbrainz_albums(release_raw)
+    except MusicBrainzError as error:
+        failures.append(error)
 
-    members = transform_musicbrainz_members(musicbrainz_details_raw)
-    if extended_catalog:
-        musicbrainz_albums_raw = musicbrainz_client.get_release_groups(mbid)
-        save_raw_json("musicbrainz", musicbrainz_albums_raw, "release-groups", mbid)
-        musicbrainz_albums = transform_musicbrainz_albums(musicbrainz_albums_raw)
+    if tadb_artist and mb_artist and _same_identity(tadb_artist, mb_artist, mb_match, mb_details):
+        enriched = (enrich_artist(tadb_artist, mb_artist, tadb_albums, mb_albums, members)
+                    if extended_catalog else enrich_artist(tadb_artist, mb_artist))
+    elif mb_artist:
+        enriched = partial_artist(mb_artist, mb_albums, members)
+    elif tadb_artist:
+        enriched = partial_artist(tadb_artist, tadb_albums)
     else:
-        musicbrainz_albums = []
+        not_found_types = (theaudiodb_client.ArtistNotFoundError,
+                           ArtistNotFoundError,
+                           UsableArtistNotFoundError)
+        if failures and all(isinstance(error, not_found_types) for error in failures):
+            raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
+        raise failures[-1] if failures else UsableArtistNotFoundError("Artista ausente.")
 
-    if extended_catalog:
-        enriched = enrich_artist(
-            theaudiodb_artist,
-            musicbrainz_artist,
-            theaudiodb_albums,
-            musicbrainz_albums,
-            members,
-        )
-    else:
-        enriched = enrich_artist(theaudiodb_artist, musicbrainz_artist)
-    if not isinstance(enriched, EnrichedArtist):
-        raise TypeError("O enrichment deve retornar um EnrichedArtist.")
     serialized = asdict(enriched)
     if not extended_catalog:
         serialized.pop("members", None)
         serialized.pop("albums", None)
-    processed_key = save_processed_json(
-        serialized, "artists", theaudiodb_id, data_type="enriched"
-    )
-    save_enriched_artist(enriched)
-
-    return {
-        "artist": enriched,
-        "artist_name": artist_name,
-        "theaudiodb_artist_id": theaudiodb_id,
-        "musicbrainz_mbid": mbid,
-        "source": "theaudiodb+musicbrainz",
-        "theaudiodb_raw_s3_key": theaudiodb_raw_key,
-        "musicbrainz_raw_s3_key": musicbrainz_raw_key,
-        "processed_s3_key": processed_key,
-    }
+    storage_id = tadb_id or mbid
+    processed_key = save_processed_json(serialized, "artists", storage_id, data_type="enriched")
+    # A tabela atual exige artist-id do TheAudioDB; não se força migração no hotfix.
+    if tadb_id:
+        save_enriched_artist(enriched)
+    sources = {"theaudiodb": bool(tadb_artist and "theaudiodb" in enriched.source_ids),
+               "musicbrainz": bool(mb_artist and "musicbrainz" in enriched.source_ids)}
+    return {"artist": enriched, "artist_name": artist_name,
+            "theaudiodb_artist_id": tadb_id, "musicbrainz_mbid": mbid,
+            "source": "+".join(key for key, used in sources.items() if used),
+            "sources": sources, "theaudiodb_raw_s3_key": tadb_key,
+            "musicbrainz_raw_s3_key": mb_key, "processed_s3_key": processed_key}
