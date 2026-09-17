@@ -702,3 +702,11 @@ endereçadas pelo Cover Art Archive através do ID do release group. Dados não
 informados permanecem `null` ou listas vazias; nenhum conteúdo biográfico é gerado.
 Relações e catálogos dependem da cobertura editorial das APIs e uma URL do Cover Art
 Archive pode não possuir imagem, situação em que o frontend usa seu placeholder.
+
+## Spotify Integration
+
+O frontend usa o **Authorization Code Flow with PKCE (S256)** diretamente com o Spotify. O Client ID público fica centralizado em `frontend/js/spotify-auth.js`; nenhum Client Secret é necessário ou aceito nesse fluxo. A URI de redirecionamento é `https://d3pzcehppsvhm0.cloudfront.net/` e deve ser cadastrada exatamente assim no Spotify Developer Dashboard.
+
+Esta fase consulta apenas o perfil básico em `/v1/me` e, por isso, não solicita scopes opcionais. Dados privados, e-mail, playlists, histórico, biblioteca e reprodução não são solicitados. `code_verifier`, `state`, access token, expiração e o perfil mínimo ficam somente em `sessionStorage`; fechar a aba encerra a sessão. O refresh token não é persistido nem utilizado nesta fase.
+
+Para testar localmente, sirva `frontend/` via HTTP, mas observe que o fluxo retorna à URI de produção cadastrada. Em Development Mode, a conta usada no teste precisa estar autorizada no app pelo Spotify Dashboard. O teste completo também exige que a URI acima esteja na allowlist de Redirect URIs. Execute os testes puros com `node --test tests/spotify-auth.test.js`.
