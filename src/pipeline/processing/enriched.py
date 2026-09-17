@@ -179,15 +179,25 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     if not extended_catalog:
         serialized.pop("members", None)
         serialized.pop("albums", None)
-    storage_id = tadb_id or mbid
-    processed_key = save_processed_json(serialized, "artists", storage_id, data_type="enriched")
+    # IDs encontrados durante a busca não são necessariamente IDs aceitos no
+    # perfil final: o candidato do TheAudioDB pode ter sido rejeitado por
+    # ``_same_identity``.  Persistências devem seguir as fontes efetivamente
+    # presentes no perfil, nunca apenas a existência de um candidato upstream.
+    profile_tadb_id = enriched.source_ids.get("theaudiodb")
+    profile_mb_id = enriched.source_ids.get("musicbrainz")
+    has_tadb_id = isinstance(profile_tadb_id, str) and bool(profile_tadb_id.strip())
+    has_mb_id = isinstance(profile_mb_id, str) and bool(profile_mb_id.strip())
+    storage_id = profile_tadb_id if has_tadb_id else profile_mb_id
+    processed_key = save_processed_json(
+        serialized, "artists", storage_id, data_type="enriched"
+    )
     # A tabela atual exige artist-id do TheAudioDB; não se força migração no hotfix.
-    if tadb_id:
+    if has_tadb_id:
         save_enriched_artist(enriched)
-    sources = {"theaudiodb": bool(tadb_artist and "theaudiodb" in enriched.source_ids),
-               "musicbrainz": bool(mb_artist and "musicbrainz" in enriched.source_ids)}
+    sources = {"theaudiodb": has_tadb_id, "musicbrainz": has_mb_id}
     return {"artist": enriched, "artist_name": artist_name,
-            "theaudiodb_artist_id": tadb_id, "musicbrainz_mbid": mbid,
+            "theaudiodb_artist_id": profile_tadb_id if has_tadb_id else None,
+            "musicbrainz_mbid": profile_mb_id if has_mb_id else None,
             "source": "+".join(key for key, used in sources.items() if used),
             "sources": sources, "theaudiodb_raw_s3_key": tadb_key,
             "musicbrainz_raw_s3_key": mb_key, "processed_s3_key": processed_key}
