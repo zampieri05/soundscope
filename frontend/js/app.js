@@ -222,12 +222,17 @@ const storyController = window.SoundScopeStoryMode?.mount(elements.storyMode, {
 });
 elements.storyOpen.addEventListener("click", () => storyController?.open(elements.storyOpen));
 
-const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status"), insights: $("#meu-soundscope"), insightsNav: $("#insights-nav"), profile: $("#spotify-profile"), profileImage: $("#spotify-profile-image"), profileName: $("#spotify-profile-name"), insightsStatus: $("#insights-status"), artists: $("#top-artists"), tracks: $("#top-tracks"), history: $("#spotify-history"), historyStatus: $("#history-status"), historyRefresh: $("#history-refresh"), orbit: $("#minha-orbita"), orbitEnter: $("#orbit-enter"), orbitClose: $("#orbit-close") };
+const spotifyElements = { connect: $("#spotify-connect"), disconnect: $("#spotify-disconnect"), status: $("#spotify-status"), insights: $("#meu-soundscope"), insightsNav: $("#insights-nav"), profile: $("#spotify-profile"), profileImage: $("#spotify-profile-image"), profileName: $("#spotify-profile-name"), insightsStatus: $("#insights-status"), artists: $("#top-artists"), tracks: $("#top-tracks"), history: $("#spotify-history"), historyStatus: $("#history-status"), historyRefresh: $("#history-refresh"), orbit: $("#minha-orbita"), orbitEnter: $("#orbit-enter"), orbitClose: $("#orbit-close"), orbitShare: $("#orbit-share"), orbitShareOpen: $("#orbit-share-open") };
 let insightsRequest = 0;
 let historyRequest = 0;
 const orbitController = window.SoundScopeSpotifyOrbit?.mount(spotifyElements.orbit, {
   reducedMotion: window.matchMedia("(prefers-reduced-motion:reduce)").matches,
   onExplore: (artist) => { elements.input.value = artist.name; searchArtist(artist.name); }
+});
+const orbitShareController = window.SoundScopeOrbitShare?.mount(spotifyElements.orbitShare, {
+  navigator: window.navigator,
+  logoUrl: "assets/soundscope-logo.png",
+  iconUrl: "assets/soundscope-icon-512.png"
 });
 
 function rankingImage(src, alt) {
@@ -319,6 +324,7 @@ document.querySelectorAll(".period-selector button").forEach((button) => button.
 }));
 spotifyElements.orbitEnter.addEventListener("click", () => { spotifyElements.orbit.classList.remove("is-hidden"); spotifyElements.orbitEnter.setAttribute("aria-expanded", "true"); spotifyElements.orbit.scrollIntoView({ behavior: "smooth", block: "start" }); });
 spotifyElements.orbitClose.addEventListener("click", () => { spotifyElements.orbit.classList.add("is-hidden"); spotifyElements.orbitEnter.setAttribute("aria-expanded", "false"); spotifyElements.orbitEnter.focus(); });
+spotifyElements.orbitShareOpen.addEventListener("click", () => orbitShareController?.open(orbitController?.get().artists || [], spotifyElements.orbitShareOpen));
 spotifyElements.historyRefresh.addEventListener("click", () => loadHistory(true));
 function renderSpotify(state, session) {
   const connected = state === "connected";
