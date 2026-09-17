@@ -102,6 +102,7 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
                 "theaudiodb_artist_id": "111279",
                 "musicbrainz_mbid": "mbid-1",
                 "source": "theaudiodb+musicbrainz",
+                "sources": {"theaudiodb": True, "musicbrainz": True},
                 "theaudiodb_raw_s3_key": "tadb-raw-key",
                 "musicbrainz_raw_s3_key": "mb-raw-key",
                 "processed_s3_key": "enriched-key",
@@ -120,26 +121,21 @@ class ProcessEnrichedArtistTests(unittest.TestCase):
             result = process_enriched_artist("Metallica")
         self.assertEqual(result["musicbrainz_mbid"], "chosen")
 
-    def test_search_without_usable_result_stops_pipeline(self):
+    def test_search_without_usable_result_returns_theaudiodb_partial(self):
         mocks = self._mocks()
         mocks["musicbrainz_client"].search_artist.return_value = {"artists": [None, {}]}
-        # The module's real exception classes remain available on this mock.
-        mocks["musicbrainz_client"].ArtistNotFoundError = ArtistNotFoundError
-        with patch.multiple(MODULE, **mocks), self.assertRaises(ArtistNotFoundError):
-            process_enriched_artist("Metallica")
-        mocks["musicbrainz_client"].get_artist_details.assert_not_called()
-        self.assertEqual(mocks["save_raw_json"].call_count, 1)
+        with patch.multiple(MODULE, **mocks):
+            result = process_enriched_artist("Metallica")
+        self.assertEqual(result["source"], "theaudiodb")
+        self.assertEqual(result["artist"].source_ids, {"theaudiodb": "111279"})
 
-    def test_result_without_mbid_stops_before_details(self):
+    def test_result_without_mbid_returns_theaudiodb_partial(self):
         mocks = self._mocks()
-        mocks["musicbrainz_client"].search_artist.return_value = {
-            "artists": [{"name": "Metallica"}]
-        }
-        mocks["musicbrainz_client"].MusicBrainzError = MusicBrainzError
-        with patch.multiple(MODULE, **mocks), self.assertRaises(MusicBrainzError):
-            process_enriched_artist("Metallica")
+        mocks["musicbrainz_client"].search_artist.return_value = {"artists": [{"name": "Metallica"}]}
+        with patch.multiple(MODULE, **mocks):
+            result = process_enriched_artist("Metallica")
+        self.assertEqual(result["sources"], {"theaudiodb": True, "musicbrainz": False})
         mocks["musicbrainz_client"].get_artist_details.assert_not_called()
-        self.assertEqual(mocks["save_raw_json"].call_count, 1)
 
     def test_each_failure_propagates_and_prevents_every_later_stage(self):
         stage_paths = [

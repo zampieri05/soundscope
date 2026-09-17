@@ -13,6 +13,7 @@
   <script src="js/spotify-auth.js" defer></script>
   <script src="js/spotify-catalog.js" defer></script>
   <script src="js/spotify-insights.js" defer></script>
+  <script src="js/discography.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -96,12 +97,13 @@
       <section class="discography reveal" id="discografia" aria-labelledby="albums-title">
         <div class="section-heading"><div class="section-index"><span>04</span><i></i><p>Discografia</p></div><div><h3 id="albums-title">Discografia</h3><p id="timeline-range">Lançamentos em ordem cronológica</p></div></div>
         <div class="timeline" id="artist-albums" tabindex="0" aria-label="Linha do tempo da discografia"></div>
+        <button class="load-more is-hidden" id="albums-load-more" type="button">Carregar mais</button>
       </section>
 
       <button class="data-trigger" id="data-trigger" type="button" aria-expanded="false" aria-controls="data-panel"><span class="data-dot"></span> Fontes dos dados <b>+</b></button>
       <aside class="data-panel" id="data-panel" aria-hidden="true" aria-labelledby="data-title">
         <button id="data-close" type="button" aria-label="Fechar painel">×</button><p class="kicker">Sinal SoundScope</p><h3 id="data-title">Fontes dos dados</h3>
-        <div><span>Fontes conectadas</span><strong>TheAudioDB<br>MusicBrainz</strong></div><div id="source-ids-wrap"><span>IDs de origem</span><code id="source-ids"></code></div>
+        <div><span>Fontes conectadas</span><strong id="source-names"></strong></div><div id="source-ids-wrap"><span>IDs de origem</span><code id="source-ids"></code></div>
         <small>Informações reunidas de múltiplas fontes musicais.</small>
       </aside><div class="panel-backdrop" id="panel-backdrop"></div>
     </article>

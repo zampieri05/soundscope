@@ -15,6 +15,8 @@ DEFAULT_TIMEOUT_SECONDS = 10
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
 MAX_REQUEST_ATTEMPTS = 3
 MAX_RETRY_DELAY_SECONDS = 60.0
+RELEASE_GROUP_PAGE_SIZE = 100
+MAX_RELEASE_GROUP_PAGES = 20
 TRANSIENT_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_USER_AGENT = "SoundScope/1.0 (https://github.com/zampieri05/soundscope)"
 
@@ -156,13 +158,44 @@ def get_artist_details(mbid: str) -> dict[str, Any]:
 
 
 def get_release_groups(mbid: str) -> dict[str, Any]:
-    """Lista grupos de lançamentos do artista em uma única requisição."""
+    """Lista release groups com paginação por ``offset`` e teto defensivo.
+
+    O retorno agregado mantém o contrato de uma única resposta para callers.
+    IDs repetidos entre páginas são eliminados e uma página vazia interrompe a
+    coleta, evitando loops diante de contagens inconsistentes.
+    """
     if not isinstance(mbid, str) or not mbid.strip():
         raise ValueError("O MBID do artista não pode estar vazio.")
-    data = _get_json(
-        f"{BASE_URL}/release-group/",
-        params={"artist": mbid.strip(), "type": "album", "limit": "100", "fmt": "json"},
-    )
-    if not isinstance(data.get("release-groups"), list):
-        raise MusicBrainzError("O MusicBrainz retornou uma estrutura JSON inesperada.")
-    return data
+    artist_mbid = mbid.strip()
+    groups: list[Any] = []
+    seen_ids: set[str] = set()
+    total: int | None = None
+    offset = 0
+    pages = 0
+    while pages < MAX_RELEASE_GROUP_PAGES:
+        data = _get_json(
+            f"{BASE_URL}/release-group/",
+            params={"artist": artist_mbid, "limit": str(RELEASE_GROUP_PAGE_SIZE),
+                    "offset": str(offset), "fmt": "json"},
+        )
+        page = data.get("release-groups")
+        if not isinstance(page, list):
+            raise MusicBrainzError("O MusicBrainz retornou uma estrutura JSON inesperada.")
+        count = data.get("release-group-count")
+        if total is None and isinstance(count, int) and count >= 0:
+            total = count
+        if not page:
+            break
+        for group in page:
+            group_id = group.get("id") if isinstance(group, dict) else None
+            if isinstance(group_id, str):
+                if group_id in seen_ids:
+                    continue
+                seen_ids.add(group_id)
+            groups.append(group)
+        pages += 1
+        offset += len(page)
+        if (total is not None and offset >= total) or len(page) < RELEASE_GROUP_PAGE_SIZE:
+            break
+    return {"release-group-count": total if total is not None else len(groups),
+            "release-group-offset": 0, "release-groups": groups, "pages-fetched": pages}
