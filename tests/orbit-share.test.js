@@ -6,10 +6,10 @@ const share = require("../frontend/js/orbit-share.js");
 const source = fs.readFileSync(require.resolve("../frontend/js/orbit-share.js"), "utf8");
 
 const artists = Array.from({ length: 8 }, (_, index) => ({ name: `Artista ${index + 1}`, image: `https://images.test/${index}.jpg`, affinity: 99, minutes: 500 }));
-function context() {
-  return { fillStyle: "", strokeStyle: "", lineWidth: 0, font: "", textAlign: "", textBaseline: "", save() {}, restore() {}, beginPath() {}, arc() {}, fill() {}, stroke() {}, moveTo() {}, lineTo() {}, clip() {}, drawImage() {}, fillRect() {}, fillText() {}, measureText(value) { return { width: String(value).length * 10 }; }, createRadialGradient() { return { addColorStop() {} }; } };
+function context(calls = {}) {
+  return { fillStyle: "", strokeStyle: "", lineWidth: 0, font: "", textAlign: "", textBaseline: "", save() {}, restore() {}, beginPath() {}, arc() {}, fill() {}, stroke() {}, moveTo() {}, lineTo() {}, clip() {}, drawImage(...args) { calls.images?.push(args); }, fillRect() {}, fillText(...args) { calls.text?.push(args); }, measureText(value) { return { width: String(value).length * 10 }; }, createRadialGradient() { return { addColorStop() {} }; } };
 }
-function canvas() { const ctx = context(); return { width: 0, height: 0, getContext: () => ctx, toBlob: (callback, type) => callback(new Blob(["png"], { type })) }; }
+function canvas(calls) { const ctx = context(calls); return { width: 0, height: 0, getContext: () => ctx, toBlob: (callback, type) => callback(new Blob(["png"], { type })) }; }
 class FailingImage { set src(_) { this.onerror(); } }
 
 test("seleciona no máximo cinco artistas e preserva a ordem", () => {
@@ -22,6 +22,25 @@ test("mantém somente nome, imagem e posição, sem métricas inventadas", () =>
 test("imagem inválida ou com falha usa fallback sem impedir renderização", async () => {
   const target = canvas(); const result = await share.render(target, [{ name: "Ana Silva", image: "https://images.test/a.jpg" }], { ImageClass: FailingImage });
   assert.equal(result.imageFallbacks, 1); assert.equal(share.initials("Ana Silva"), "AS");
+});
+test("usa o ícone SoundScope e desenha o wordmark tipográfico no cabeçalho", async () => {
+  const sources = []; const calls = { images: [], text: [] };
+  class LoadedImage { constructor() { this.naturalWidth = 512; this.naturalHeight = 512; } set src(value) { sources.push(value); this.onload(); } }
+  await share.render(canvas(calls), [], { ImageClass: LoadedImage });
+  assert.deepEqual(sources, ["assets/soundscope-icon-512.png"]);
+  assert.equal(calls.images.length, 1);
+  assert.deepEqual(calls.images[0].slice(1), [76, 72, 52, 52]);
+  assert.ok(calls.text.some(([value]) => value === "SoundScope"));
+});
+test("falha do ícone mantém a geração e renderiza somente o wordmark", async () => {
+  const calls = { images: [], text: [] }; const target = canvas(calls);
+  const result = await share.render(target, [], { ImageClass: FailingImage });
+  assert.equal(result.canvas, target);
+  assert.equal(calls.images.length, 0);
+  assert.ok(calls.text.some(([value, x]) => value === "SoundScope" && x === 76));
+});
+test("não depende mais do logotipo completo no cabeçalho", () => {
+  assert.equal(source.includes("soundscope-logo.png"), false);
 });
 test("gera composição Canvas exatamente em 1080 × 1920", async () => {
   const target = canvas(); await share.render(target, artists, { ImageClass: FailingImage }); assert.equal(target.width, 1080); assert.equal(target.height, 1920);

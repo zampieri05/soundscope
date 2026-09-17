@@ -16,15 +16,17 @@
   function line(ctx, x1, y1, x2, y2, color = "rgba(98,138,154,.24)") { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); }
   function fallbackArtist(ctx, artist, position) { circle(ctx, position.x, position.y, position.r, "#151a20", "rgba(98,138,154,.55)"); text(ctx, initials(artist.name), position.x, position.y, { size: Math.round(position.r * .48), color: "#83a4b0", align: "center", baseline: "middle" }); }
   function circularImage(ctx, image, position) { ctx.save(); ctx.beginPath(); ctx.arc(position.x, position.y, position.r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(image, position.x - position.r, position.y - position.r, position.r * 2, position.r * 2); ctx.restore(); circle(ctx, position.x, position.y, position.r, null, "rgba(255,255,255,.2)"); }
+  function containedImage(ctx, image, x, y, maxWidth, maxHeight) { const width = image.naturalWidth || image.width || maxWidth; const height = image.naturalHeight || image.height || maxHeight; const scale = Math.min(maxWidth / width, maxHeight / height); const drawWidth = width * scale; const drawHeight = height * scale; ctx.drawImage(image, x + (maxWidth - drawWidth) / 2, y + (maxHeight - drawHeight) / 2, drawWidth, drawHeight); }
   function loadImage(src, ImageClass) { return new Promise((resolve) => { if (!src || !ImageClass) { resolve(null); return; } const image = new ImageClass(); image.crossOrigin = "anonymous"; image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = src; }); }
   async function render(canvas, items, options = {}) {
     if (!canvas) throw new Error("CANVAS_REQUIRED"); canvas.width = WIDTH; canvas.height = HEIGHT;
     const ctx = canvas.getContext("2d"); const artists = selectArtists(items); const ImageClass = options.ImageClass || (typeof Image !== "undefined" ? Image : null);
     if (typeof document !== "undefined" && document.fonts?.ready) await document.fonts.ready;
-    const [logo, icon, ...images] = await Promise.all([loadImage(options.logoUrl || "assets/soundscope-logo.png", ImageClass), loadImage(options.iconUrl || "assets/soundscope-icon-512.png", ImageClass), ...artists.map((artist) => loadImage(artist.image, ImageClass))]);
+    const [icon, ...images] = await Promise.all([loadImage(options.iconUrl || "assets/soundscope-icon-512.png", ImageClass), ...artists.map((artist) => loadImage(artist.image, ImageClass))]);
     ctx.fillStyle = "#0b0d10"; ctx.fillRect(0, 0, WIDTH, HEIGHT);
     const gradient = ctx.createRadialGradient(540, 660, 50, 540, 660, 650); gradient.addColorStop(0, "rgba(98,138,154,.14)"); gradient.addColorStop(1, "rgba(11,13,16,0)"); ctx.fillStyle = gradient; ctx.fillRect(0, 0, WIDTH, 1320);
-    if (logo) ctx.drawImage(logo, 76, 74, 238, 54); else if (icon) ctx.drawImage(icon, 76, 68, 60, 60); else text(ctx, "SOUNDSCOPE", 78, 112, { size: 28, letterSpacing: 5 });
+    if (icon) { containedImage(ctx, icon, 76, 72, 52, 52); text(ctx, "SoundScope", 148, 99, { size: 29, weight: 600, baseline: "middle" }); }
+    else text(ctx, "SoundScope", 76, 99, { size: 29, weight: 600, baseline: "middle" });
     text(ctx, "MINHA ÓRBITA MUSICAL", 1004, 108, { size: 17, color: "#879096", align: "right", letterSpacing: 3 }); line(ctx, 76, 160, 1004, 160, "rgba(255,255,255,.12)");
     circle(ctx, 540, 680, 330, null, "rgba(255,255,255,.05)"); circle(ctx, 540, 680, 455, null, "rgba(98,138,154,.08)");
     artists.forEach((artist, index) => { if (index) line(ctx, 540, 680, POSITIONS[index].x, POSITIONS[index].y); });
