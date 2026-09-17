@@ -330,7 +330,8 @@ function renderSpotify(state, session) {
   const connected = state === "connected";
   spotifyElements.connect.classList.toggle("is-hidden", connected); spotifyElements.disconnect.classList.toggle("is-hidden", !connected);
   spotifyElements.connect.disabled = state === "redirecting" || state === "processing";
-  spotifyElements.connect.textContent = state === "redirecting" ? "Conectando..." : "Conectar Spotify";
+  const connectLabel = state === "redirecting" ? "Conectando..." : "Conectar com Spotify";
+  spotifyElements.connect.querySelector("span").textContent = connectLabel;
   spotifyElements.status.textContent = connected ? `Spotify conectado · ${session.user.displayName}` : ({ processing: "Finalizando conexão...", expired: "Sua sessão do Spotify expirou. Conecte novamente.", error: "Não foi possível conectar ao Spotify." }[state] || "");
   spotifyElements.insights.classList.toggle("is-hidden", !connected); spotifyElements.insightsNav.classList.toggle("is-hidden", !connected);
   if (connected) { renderInsightsProfile(session); const active = document.querySelector(".period-selector button.is-active"); loadInsights(active?.dataset.range || "short_term"); loadHistory(); }
