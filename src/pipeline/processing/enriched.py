@@ -1,6 +1,6 @@
 """Orquestração resiliente multi-source de artistas enriquecidos."""
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 import logging
 from typing import Any, TypedDict
 import unicodedata
@@ -8,7 +8,6 @@ import uuid
 
 from src.models import EnrichedArtist, NormalizedArtist
 from src.pipeline.enrichment.artist import enrich_artist, partial_artist, _comparable_name
-from src.pipeline.enrichment.covers import enrich_missing_covers
 from src.pipeline.ingestion.errors import UsableArtistNotFoundError
 from src.pipeline.ingestion.theaudiodb import _first_artist_id
 from src.pipeline.transformers import (
@@ -20,6 +19,7 @@ from src.services.musicbrainz import client as musicbrainz_client
 from src.services.musicbrainz.client import MusicBrainzError, ArtistNotFoundError
 from src.services.theaudiodb import client as theaudiodb_client
 from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
+from src.services.coverartarchive import add_missing_covers
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 from src.utils.telemetry import increment, measure
@@ -317,9 +317,13 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
             raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
         raise UsableArtistNotFoundError("Artista ausente.")
 
-    # Executado antes da persistência processada: hits no cache S3 reutilizam as
-    # URLs e não voltam a consultar o CAA a cada requisição.
-    enriched = replace(enriched, albums=enrich_missing_covers(enriched.albums))
+    # TheAudioDB remains authoritative for existing covers. CAA is a bounded,
+    # best-effort fallback and only returns URLs served by this Lambda.
+    enriched = EnrichedArtist(
+        enriched.name, enriched.country, enriched.genre, enriched.formed_year,
+        enriched.biography, enriched.image_url, enriched.source_ids,
+        enriched.members, add_missing_covers(enriched.albums),
+    )
 
     serialized = asdict(enriched)
     if not extended_catalog:

@@ -1,40 +1,149 @@
-"""Cliente resiliente e limitado do Cover Art Archive."""
+"""Private, best-effort cache for Cover Art Archive release-group images."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 import logging
 import os
+import uuid
 from typing import Any
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 import requests
 
-BASE_URL = "https://coverartarchive.org/release-group"
-DEFAULT_TIMEOUT_SECONDS = 2.5
-USER_AGENT = os.getenv("MUSICBRAINZ_USER_AGENT", "SoundScope/1.0 (https://github.com/zampieri05/soundscope)")
+from src.models import EnrichedAlbum
+
+
 logger = logging.getLogger(__name__)
+MAX_CAA_LOOKUPS = 20
+MAX_CAA_WORKERS = 5
+CAA_TIMEOUT_SECONDS = 10
 
 
-def front_cover_url(release_group_mbid: str) -> str | None:
-    """Retorna somente uma imagem explicitamente marcada como frontal."""
+class CoverArtError(Exception):
+    """A cover could not safely be obtained or cached."""
+
+
+class CoverNotFoundError(CoverArtError):
+    """The requested private cover is not present."""
+
+
+def validate_release_group_id(value: Any) -> str:
+    """Return a canonical MusicBrainz UUID, rejecting unsafe path values."""
+    if not isinstance(value, str):
+        raise ValueError("release_group_id must be a valid UUID")
     try:
-        response = requests.get(
-            f"{BASE_URL}/{release_group_mbid}",
-            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-            timeout=DEFAULT_TIMEOUT_SECONDS,
+        return str(uuid.UUID(value.strip()))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("release_group_id must be a valid UUID") from exc
+
+
+def cover_key(release_group_id: str) -> str:
+    return f"covers/release-groups/{validate_release_group_id(release_group_id)}.jpg"
+
+
+def _bucket() -> str:
+    bucket = os.getenv("SOUNDSCOPE_S3_BUCKET", "").strip()
+    if not bucket:
+        raise CoverArtError("SOUNDSCOPE_S3_BUCKET is not configured")
+    return bucket
+
+
+def _proxy_url(release_group_id: str) -> str:
+    base_url = os.getenv("SOUNDSCOPE_API_BASE_URL", "").strip().rstrip("/")
+    if not base_url:
+        raise CoverArtError("SOUNDSCOPE_API_BASE_URL is not configured")
+    return f"{base_url}/cover/{release_group_id}"
+
+
+def _is_missing(error: ClientError) -> bool:
+    return str(error.response.get("Error", {}).get("Code", "")) in {
+        "404", "NoSuchKey", "NotFound"
+    }
+
+
+def cache_cover(
+    release_group_id: str,
+    *,
+    s3_client: Any | None = None,
+    http_get: Any = requests.get,
+) -> str:
+    """Return the private proxy URL, downloading to S3 only on a cache miss."""
+    release_group_id = validate_release_group_id(release_group_id)
+    key, bucket = cover_key(release_group_id), _bucket()
+    client = s3_client or boto3.client("s3")
+    try:
+        client.head_object(Bucket=bucket, Key=key)
+        return _proxy_url(release_group_id)
+    except ClientError as exc:
+        if not _is_missing(exc):
+            raise CoverArtError("failed to inspect private cover cache") from exc
+    except BotoCoreError as exc:
+        raise CoverArtError("failed to inspect private cover cache") from exc
+
+    try:
+        response = http_get(
+            f"https://coverartarchive.org/release-group/{release_group_id}/front",
+            timeout=CAA_TIMEOUT_SECONDS,
         )
-        if response.status_code == 404:
-            return None
         response.raise_for_status()
-        payload: Any = response.json()
-        images = payload.get("images") if isinstance(payload, dict) else None
-        for image in images if isinstance(images, list) else []:
-            if isinstance(image, dict) and image.get("front") is True:
-                thumbnails = image.get("thumbnails")
-                if isinstance(thumbnails, dict):
-                    url = thumbnails.get("500") or thumbnails.get("large")
-                    if isinstance(url, str) and url.strip():
-                        return url.strip()
-                url = image.get("image")
-                if isinstance(url, str) and url.strip():
-                    return url.strip()
-    except (requests.RequestException, ValueError, TypeError):
-        logger.info("Cover Art Archive unavailable release_group=%s", release_group_mbid)
-    return None
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        body = response.content
+    except requests.RequestException as exc:
+        raise CoverArtError("Cover Art Archive download failed") from exc
+    if not content_type.startswith("image/") or not body:
+        raise CoverArtError("Cover Art Archive response is not an image")
+    try:
+        client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=body,
+            ContentType=content_type,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        raise CoverArtError("failed to store cover in private cache") from exc
+    return _proxy_url(release_group_id)
+
+
+def get_cached_cover(
+    release_group_id: str, *, s3_client: Any | None = None
+) -> tuple[bytes, str]:
+    """Read a private cover for the Lambda endpoint without exposing S3."""
+    key, bucket = cover_key(release_group_id), _bucket()
+    try:
+        response = (s3_client or boto3.client("s3")).get_object(Bucket=bucket, Key=key)
+        body = response["Body"].read()
+        content_type = str(response.get("ContentType") or "image/jpeg")
+        if not content_type.lower().startswith("image/"):
+            raise CoverArtError("cached cover has an invalid content type")
+        return body, content_type
+    except ClientError as exc:
+        if _is_missing(exc):
+            raise CoverNotFoundError("cover not found") from exc
+        raise CoverArtError("failed to read private cover cache") from exc
+    except (BotoCoreError, KeyError, AttributeError, OSError) as exc:
+        raise CoverArtError("failed to read private cover cache") from exc
+
+
+def add_missing_covers(albums: list[EnrichedAlbum]) -> list[EnrichedAlbum]:
+    """Fill only missing covers, concurrently and with a bounded CAA budget."""
+    result = list(albums)
+    candidates = [
+        (index, album.musicbrainz_release_group_id)
+        for index, album in enumerate(result)
+        if not album.cover_url and album.musicbrainz_release_group_id
+    ][:MAX_CAA_LOOKUPS]
+    if not candidates:
+        return result
+    with ThreadPoolExecutor(max_workers=MAX_CAA_WORKERS) as executor:
+        pending = {executor.submit(cache_cover, mbid): index for index, mbid in candidates}
+        for future in as_completed(pending):
+            try:
+                result[pending[future]] = replace(
+                    result[pending[future]], cover_url=future.result()
+                )
+            except Exception as exc:
+                # Covers are optional enrichment. Never fail the artist pipeline.
+                logger.warning("Cover enrichment failed error_type=%s", type(exc).__name__)
+    return result
+

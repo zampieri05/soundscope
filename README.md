@@ -765,6 +765,16 @@ URLs do Cover Art Archive não são fabricadas: sem confirmação, `cover_url` �
 `null`. A deduplicação prioriza IDs e só usa título/data normalizados de modo
 conservador entre fontes; qualificadores editoriais não são removidos.
 
+Capas ausentes são consultadas no Cover Art Archive como fallback, baixadas pelo
+backend e gravadas de forma privada em
+`covers/release-groups/<release-group-mbid>.jpg` no bucket configurado. Um
+`HeadObject` evita downloads repetidos. O cliente recebe somente
+`<SOUNDSCOPE_API_BASE_URL>/cover/<release-group-mbid>`; esse endpoint lê o objeto
+com `GetObject` e devolve bytes em base64 pelo contrato do API Gateway, sem URL
+S3 ou ACL pública. Em produção, a role da Lambda precisa de `s3:GetObject` e
+`s3:PutObject` nesse prefixo (o `HeadObject` é autorizado por `s3:GetObject`).
+Falhas da origem ou do cache são best-effort e preservam o álbum sem capa.
+
 No frontend, somente os primeiros 20 lançamentos entram inicialmente no DOM; o
 botão **Carregar mais** acrescenta blocos de 20 sem descartar o catálogo recebido.
 As etiquetas de categoria usam exclusivamente tipos primários/secundários, e capa,
