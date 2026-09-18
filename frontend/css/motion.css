@@ -38,3 +38,23 @@
 @keyframes title-sheen{0%,72%,100%{background-position:100% 50%}86%{background-position:0 50%}}
 @keyframes artist-light-sweep{from{opacity:0;background-position:100% 50%}35%{opacity:1}to{opacity:0;background-position:0 50%}}
 @media(prefers-reduced-motion:reduce){.home:before,.home h1,.artist:not(.is-hidden) .artist-hero:after{animation:none!important}.home h1{background:none;color:var(--text)}}
+
+/* Motion V4: immersive interaction layer */
+.motion-v4 body:before{content:"";position:fixed;z-index:9998;left:var(--cursor-x,-200px);top:var(--cursor-y,-200px);width:340px;height:340px;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(var(--accent-rgb),.075),transparent 68%);mix-blend-mode:screen;transition:opacity .3s}
+.motion-progress{position:fixed;z-index:10000;left:0;right:0;top:0;height:2px;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,#77aaff,#8c72ff,#61dcff);box-shadow:0 0 14px rgba(var(--accent-rgb),.7);pointer-events:none}
+.motion-ripple{position:fixed;z-index:9999;width:14px;height:14px;margin:-7px;border:1px solid rgba(170,205,255,.75);border-radius:50%;pointer-events:none;animation:motion-ripple .72s var(--motion-soft) forwards}
+.motion-v4 .sound-orb{transform:translate3d(var(--orb-x,0),var(--orb-y,0),0);transition:transform .12s linear;will-change:transform}
+.motion-v4 .sound-orb:before{box-shadow:0 0 45px rgba(var(--accent-rgb),.12)}
+.motion-v4 .brand{position:relative}.motion-v4 .brand:after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:1px;transform:scaleX(0);background:linear-gradient(90deg,transparent,rgba(150,195,255,.9),transparent);transition:transform .45s var(--motion-spring)}.motion-v4 .brand:hover:after{transform:scaleX(1)}
+.motion-v4 .album{transform-style:preserve-3d;will-change:transform;transition:transform .16s linear,box-shadow .35s var(--motion-soft)}
+.motion-v4 .album:hover{transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translateY(-8px) scale(1.018)}
+.motion-v4 .album:before{content:"";position:absolute;z-index:3;inset:0;border-radius:inherit;pointer-events:none;opacity:0;background:radial-gradient(circle at var(--glow-x,50%) var(--glow-y,50%),rgba(180,215,255,.16),transparent 38%);transition:opacity .25s}.motion-v4 .album:hover:before{opacity:1}
+.motion-v4 .album__visual{transform:translateZ(22px)}.motion-v4 .album h4,.motion-v4 .album__year,.motion-v4 .album__type{transform:translateZ(12px)}
+.motion-v4 .topbar{animation:topbar-drop .8s var(--motion-soft) both}
+.motion-v4 .home-path span{transition:transform .35s var(--motion-spring),color .3s}.motion-v4 .home-path span:hover{transform:translateY(-5px);color:var(--text)}
+.motion-v4 .member{transition:transform .32s var(--motion-spring),background .3s,border-color .3s}.motion-v4 .member:hover{transform:translateX(9px);background:rgba(var(--accent-rgb),.055);border-color:rgba(var(--accent-rgb),.25)}
+.motion-v4 .ranking-row,.motion-v4 .history-row{transition:transform .3s var(--motion-spring),background .3s}.motion-v4 .ranking-row:hover,.motion-v4 .history-row:hover{transform:translateX(7px);background:rgba(var(--accent-rgb),.05)}
+@keyframes motion-ripple{0%{opacity:1;transform:scale(.3)}100%{opacity:0;transform:scale(9)}}
+@keyframes topbar-drop{from{opacity:0;transform:translateY(-22px);backdrop-filter:blur(0)}to{opacity:1;transform:none}}
+@media(max-width:760px){.motion-v4 body:before{display:none}.motion-v4 .album:hover{transform:translateY(-5px)}}
+@media(prefers-reduced-motion:reduce){.motion-progress,.motion-ripple,.motion-v4 body:before{display:none!important}.motion-v4 .album:hover{transform:none!important}}
