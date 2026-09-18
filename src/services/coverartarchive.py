@@ -15,9 +15,9 @@ from src.models import EnrichedAlbum
 
 
 logger = logging.getLogger(__name__)
-MAX_CAA_LOOKUPS = 20
-MAX_CAA_WORKERS = 5
-CAA_TIMEOUT_SECONDS = 10
+MAX_CAA_LOOKUPS = 60
+MAX_CAA_WORKERS = 10
+CAA_TIMEOUT_SECONDS = 5
 
 
 class CoverArtError(Exception):
@@ -159,24 +159,11 @@ def add_missing_covers(albums: list[EnrichedAlbum]) -> list[EnrichedAlbum]:
     ]
     ranked_missing = sorted(missing, key=cover_priority)
 
-    # Rotate the bounded lookup window between requests. Already-cached covers
-    # are cheap cache hits, while the offset lets later searches reach release
-    # groups that were outside the first batch. The rotation is deterministic
-    # from the current cache coverage, so the catalogue fills progressively
-    # without increasing the per-request external lookup budget.
-    covered_mbids = {
-        album.musicbrainz_release_group_id
-        for album in result
-        if album.cover_url and album.musicbrainz_release_group_id
-    }
-    start = min(len(covered_mbids), max(0, len(ranked_missing) - 1))
-    window = ranked_missing[start:start + MAX_CAA_LOOKUPS]
-    if len(window) < MAX_CAA_LOOKUPS:
-        window += ranked_missing[:MAX_CAA_LOOKUPS - len(window)]
-
+    # Successful covers leave the missing set on the next rebuild, so the
+    # bounded batch naturally advances while still prioritizing core albums.
     candidates = [
         (index, album.musicbrainz_release_group_id)
-        for index, album in window
+        for index, album in ranked_missing[:MAX_CAA_LOOKUPS]
     ]
     if not candidates:
         return result
