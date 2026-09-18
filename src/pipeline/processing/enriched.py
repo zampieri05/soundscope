@@ -316,6 +316,10 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
             raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
         raise UsableArtistNotFoundError("Artista ausente.")
 
+    # Cover Art Archive enrichment is intentionally lazy. Artist search must
+    # not wait for dozens of image downloads; visible album cards request their
+    # private /cover endpoint after the artist payload is rendered.
+
     serialized = asdict(enriched)
     if not extended_catalog:
         serialized.pop("members", None)

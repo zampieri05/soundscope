@@ -1,6 +1,7 @@
 """AWS Lambda proxy handler for enriched artist processing."""
 
 from dataclasses import asdict, is_dataclass
+import base64
 import json
 import logging
 from typing import Any
@@ -25,6 +26,13 @@ from src.services.theaudiodb.client import (
     TheAudioDBError,
 )
 from src.utils.telemetry import InvocationMetrics, activate, deactivate, increment
+from src.services.coverartarchive import (
+    CoverArtError,
+    CoverNotFoundError,
+    cache_cover,
+    get_cached_cover,
+    validate_release_group_id,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +73,44 @@ def _success_body(result: EnrichedArtistProcessingResult) -> dict[str, Any]:
     }
 
 
+def _is_cover_request(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+    parameters = event.get("pathParameters")
+    return isinstance(parameters, dict) and "release_group_id" in parameters
+
+
+def _cover_response(event: dict[str, Any]) -> dict[str, Any]:
+    value = event["pathParameters"].get("release_group_id")
+    try:
+        release_group_id = validate_release_group_id(value)
+    except ValueError:
+        return _response(400, {"error": "invalid release_group_id"})
+    try:
+        body, content_type = get_cached_cover(release_group_id)
+    except CoverNotFoundError:
+        # Lazy fill: the artist payload is returned immediately and only album
+        # covers that the browser actually renders trigger CAA work.
+        try:
+            cache_cover(release_group_id)
+            body, content_type = get_cached_cover(release_group_id)
+        except CoverArtError:
+            return _response(404, {"error": "cover not found"})
+    except CoverArtError:
+        logger.error("Private cover cache read failed")
+        return _response(500, {"error": "internal server error"})
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": content_type,
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=86400",
+        },
+        "isBase64Encoded": True,
+        "body": base64.b64encode(body).decode("ascii"),
+    }
+
+
 def _run_pipeline_and_publish_index(
     artist_name: str,
 ) -> tuple[EnrichedArtistProcessingResult, bool]:
@@ -83,6 +129,8 @@ def _run_pipeline_and_publish_index(
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Run the enriched-artist pipeline for an API Gateway path parameter."""
+    if _is_cover_request(event):
+        return _cover_response(event)
     global _cold_start
     cold_start, _cold_start = _cold_start, False
     metrics = InvocationMetrics()

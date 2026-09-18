@@ -9,7 +9,7 @@ const elements = {
   loading: $("#loading-state"), error: $("#error-state"), errorMessage: $("#error-message"), result: $("#result"), image: $("#artist-image"),
   name: $("#artist-name"), meta: $("#artist-meta"), formed: $("#artist-formed"), genre: $("#artist-genre"), country: $("#artist-country"), year: $("#artist-year"),
   biography: $("#artist-biography"), biographyWrap: $("#biography-wrap"), readMore: $("#read-more"), members: $("#artist-members"), membersSection: $("#integrantes"),
-  membersNav: $("#members-nav"), albums: $("#artist-albums"), albumsSection: $("#discografia"), albumsNav: $("#albums-nav"), range: $("#timeline-range"),
+  membersNav: $("#members-nav"), albums: $("#artist-albums"), albumsSection: $("#discografia"), albumsNav: $("#albums-nav"), range: $("#timeline-range"), albumFilters: $("#discography-filters"),
   dataTrigger: $("#data-trigger"), dataPanel: $("#data-panel"), dataClose: $("#data-close"), backdrop: $("#panel-backdrop"), sourceIds: $("#source-ids"), sourceIdsWrap: $("#source-ids-wrap"), sourceNames: $("#source-names"), albumsLoadMore: $("#albums-load-more"), storyOpen: $("#story-mode-open"), storyMode: $("#story-mode")
 };
 let requestInProgress = false;
@@ -92,6 +92,8 @@ function albumPlaceholder(title) {
 const ALBUM_PAGE_SIZE = 20;
 let pendingAlbums = [];
 let visibleAlbumCount = 0;
+let albumGroups = {};
+let activeAlbumCategory = null;
 
 function albumCategory(album) {
   return window.SoundScopeDiscography.category(album);
@@ -101,8 +103,11 @@ function createAlbumCard(album) {
   const card = document.createElement("article"); card.className = "album";
   const visual = document.createElement("div"); visual.className = "album__visual";
   const fallback = albumPlaceholder(album.title); visual.append(fallback);
-  if (album.cover_url) {
-    const image = document.createElement("img"); image.src = album.cover_url; image.alt = `Capa de ${album.title || "lançamento sem título"}`; image.loading = "lazy"; image.decoding = "async";
+  const coverUrl = album.cover_url || (album.musicbrainz_release_group_id
+    ? `${API_BASE_URL}/cover/${encodeURIComponent(album.musicbrainz_release_group_id)}`
+    : "");
+  if (coverUrl) {
+    const image = document.createElement("img"); image.src = coverUrl; image.alt = `Capa de ${album.title || "lançamento sem título"}`; image.loading = "lazy"; image.decoding = "async";
     image.onload = () => fallback.remove(); image.onerror = () => image.remove(); visual.append(image);
   }
   const year = document.createElement("p"); year.className = "album__year"; year.textContent = album.year || "Ano não informado";
@@ -124,17 +129,28 @@ function loadMoreAlbums() {
 }
 
 function renderAlbums(albums) {
-  pendingAlbums = albums.map((album, index) => ({ album, index })).sort((a, b) => {
-    const category = albumCategory(a.album).localeCompare(albumCategory(b.album), "pt-BR");
+  const sorted = albums.map((album, index) => ({ album, index })).sort((a, b) => {
     const first = Number.parseInt(a.album.year, 10); const second = Number.parseInt(b.album.year, 10);
-    return category || (Number.isNaN(first) ? 1 : Number.isNaN(second) ? -1 : first - second) || a.index - b.index;
+    return (Number.isNaN(first) ? 1 : Number.isNaN(second) ? -1 : first - second) || a.index - b.index;
   }).map(({ album }) => album);
-  visibleAlbumCount = 0; elements.albums.replaceChildren();
-  const visible = pendingAlbums.length > 0;
+  albumGroups = window.SoundScopeDiscography.group(sorted);
+  activeAlbumCategory = window.SoundScopeDiscography.defaultCategory(albumGroups);
+  const visible = sorted.length > 0;
   elements.albumsSection.classList.toggle("is-hidden", !visible); elements.albumsNav.classList.toggle("is-hidden", !visible);
+  elements.albumFilters.replaceChildren(...window.SoundScopeDiscography.CATEGORIES.filter((name) => albumGroups[name].length).map((name) => {
+    const button = document.createElement("button"); button.type = "button"; button.className = "discography-filter"; button.setAttribute("role", "tab"); button.dataset.category = name;
+    button.append(document.createTextNode(`${name} `)); const count = document.createElement("span"); count.textContent = albumGroups[name].length; button.append(count);
+    button.addEventListener("click", () => selectAlbumCategory(name)); return button;
+  }));
+  if (visible) selectAlbumCategory(activeAlbumCategory); else { elements.albums.replaceChildren(); elements.albumsLoadMore.classList.add("is-hidden"); }
+}
+function selectAlbumCategory(name) {
+  activeAlbumCategory = name; pendingAlbums = albumGroups[name] || []; visibleAlbumCount = 0;
+  elements.albums.classList.remove("is-switching"); void elements.albums.offsetWidth; elements.albums.classList.add("is-switching"); elements.albums.replaceChildren();
+  [...elements.albumFilters.children].forEach((button) => { const selected = button.dataset.category === name; button.classList.toggle("is-active", selected); button.setAttribute("aria-selected", String(selected)); });
   const years = pendingAlbums.map((album) => Number.parseInt(album.year, 10)).filter(Number.isFinite);
-  elements.range.textContent = years.length ? `${Math.min(...years)} → ${Math.max(...years)}` : "Lançamentos organizados por tipo";
-  if (visible) loadMoreAlbums(); else elements.albumsLoadMore.classList.add("is-hidden");
+  elements.range.textContent = years.length ? `${name} · ${Math.min(...years)} → ${Math.max(...years)}` : name;
+  loadMoreAlbums();
 }
 async function lookupSpotifyAlbum(album, card, output) {
   if (card.dataset.spotifyState === "loading" || card.dataset.spotifyState === "done") return;
@@ -330,7 +346,8 @@ function renderSpotify(state, session) {
   const connected = state === "connected";
   spotifyElements.connect.classList.toggle("is-hidden", connected); spotifyElements.disconnect.classList.toggle("is-hidden", !connected);
   spotifyElements.connect.disabled = state === "redirecting" || state === "processing";
-  spotifyElements.connect.textContent = state === "redirecting" ? "Conectando..." : "Conectar Spotify";
+  const connectLabel = state === "redirecting" ? "Conectando..." : "Conectar com Spotify";
+  spotifyElements.connect.querySelector("span").textContent = connectLabel;
   spotifyElements.status.textContent = connected ? `Spotify conectado · ${session.user.displayName}` : ({ processing: "Finalizando conexão...", expired: "Sua sessão do Spotify expirou. Conecte novamente.", error: "Não foi possível conectar ao Spotify." }[state] || "");
   spotifyElements.insights.classList.toggle("is-hidden", !connected); spotifyElements.insightsNav.classList.toggle("is-hidden", !connected);
   if (connected) { renderInsightsProfile(session); const active = document.querySelector(".period-selector button.is-active"); loadInsights(active?.dataset.range || "short_term"); loadHistory(); }
