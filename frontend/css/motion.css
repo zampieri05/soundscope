@@ -1,0 +1,65 @@
+/* SoundScope Motion System v2 */
+:root{--motion-spring:cubic-bezier(.16,1,.3,1);--motion-soft:cubic-bezier(.22,1,.36,1)}
+.brand-mark{transform-origin:center;transition:filter .3s var(--motion-soft),transform .3s var(--motion-soft)}
+.brand-mark i{transform-origin:center;animation:none;transition:height .25s var(--motion-spring),transform .25s var(--motion-spring),filter .25s}
+.brand:hover .brand-mark,.brand:focus-visible .brand-mark{filter:drop-shadow(0 0 10px rgba(var(--accent-rgb),.85));transform:scale(1.12)}
+.brand:hover .brand-mark i,.brand:focus-visible .brand-mark i{animation:brand-eq .62s ease-in-out infinite alternate}
+.brand:hover .brand-mark i:nth-child(2){animation-delay:-.28s}.brand:hover .brand-mark i:nth-child(3){animation-delay:-.48s}.brand:hover .brand-mark i:nth-child(4){animation-delay:-.18s}.brand:hover .brand-mark i:nth-child(5){animation-delay:-.38s}
+.sound-orb{animation:orb-float 7s ease-in-out infinite}.orb-core{animation:orb-breathe 7s ease-in-out infinite!important}
+.sound-orb:before,.sound-orb:after,.sound-orb i{animation:ring-drift 12s linear infinite}.sound-orb:after{animation-direction:reverse;animation-duration:16s}.sound-orb i:nth-of-type(2){animation-duration:10s}.sound-orb i:nth-of-type(3){animation-direction:reverse;animation-duration:14s}
+.home-copy>*{animation:hero-rise .85s var(--motion-soft) both}.home-copy>*:nth-child(2){animation-delay:.12s}.home-copy>*:nth-child(3){animation-delay:.24s}.search-area{animation:hero-rise .9s .34s var(--motion-soft) both}.home-path{animation:hero-rise .9s .46s var(--motion-soft) both}
+.search{transition:border-color .25s,background .25s,box-shadow .35s var(--motion-soft),transform .35s var(--motion-soft)}.search:focus-within{transform:translateY(-4px);box-shadow:0 0 0 4px rgba(var(--accent-rgb),.13),0 30px 75px rgba(0,0,0,.32)}
+.search button,.outline-button,.story-entry button,.orbit-entry button,.spotify-button{transition:transform .18s var(--motion-spring),box-shadow .25s,background .2s}.search button:active,.outline-button:active,.story-entry button:active,.orbit-entry button:active,.spotify-button:active{transform:scale(.95)}
+.artist:not(.is-hidden) .artist-photo{animation:artist-photo-in 1s var(--motion-soft) both}.artist:not(.is-hidden) .artist-intro>*{animation:artist-copy-in .75s var(--motion-soft) both}.artist:not(.is-hidden) .artist-intro>*:nth-child(2){animation-delay:.12s}.artist:not(.is-hidden) .artist-intro>*:nth-child(3){animation-delay:.22s}.artist:not(.is-hidden) .artist-intro>*:nth-child(4){animation-delay:.3s}
+.album{transition:transform .4s var(--motion-soft),opacity .4s}.album__visual{isolation:isolate}.album__visual:after{content:"";position:absolute;inset:-45%;z-index:2;pointer-events:none;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.16) 50%,transparent 60%);transform:translateX(-75%) rotate(8deg);transition:transform .75s var(--motion-soft)}.album:hover .album__visual:after,.album:focus-within .album__visual:after{transform:translateX(75%) rotate(8deg)}.album__visual img{animation:cover-arrive .65s var(--motion-soft) both}
+.story-entry,.orbit-entry,.spotify-profile{transition:transform .35s var(--motion-soft),border-color .35s,box-shadow .35s}.story-entry:hover,.orbit-entry:hover,.spotify-profile:hover{transform:translateY(-5px);border-color:rgba(var(--accent-rgb),.48);box-shadow:0 24px 65px rgba(0,0,0,.25)}
+.signal-loader{position:relative}.signal-loader:after{content:"";position:absolute;inset:50% -38px auto;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--accent-rgb),.75),transparent);animation:signal-scan 1.5s ease-in-out infinite}
+@keyframes brand-eq{0%{transform:scaleY(.45)}100%{transform:scaleY(1.55)}}
+@keyframes orb-float{0%,100%{margin-top:0}50%{margin-top:-16px}}
+@keyframes ring-drift{to{rotate:360deg}}
+@keyframes hero-rise{from{opacity:0;transform:translateY(28px);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+@keyframes artist-photo-in{from{opacity:.15;transform:scale(1.07);filter:blur(14px)}to{opacity:1;transform:none;filter:none}}
+@keyframes artist-copy-in{from{opacity:0;transform:translateY(30px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+@keyframes cover-arrive{from{opacity:0;transform:scale(1.06);filter:blur(9px)}to{opacity:1;transform:none;filter:none}}
+@keyframes signal-scan{0%,100%{opacity:.15;transform:scaleX(.25)}50%{opacity:1;transform:scaleX(1.15)}}
+@media(prefers-reduced-motion:reduce){.brand-mark i,.sound-orb,.sound-orb:before,.sound-orb:after,.sound-orb i,.orb-core,.home-copy>*,.search-area,.home-path,.artist:not(.is-hidden) .artist-photo,.artist:not(.is-hidden) .artist-intro>*,.album__visual img,.signal-loader:after{animation:none!important}.album__visual:after{display:none}.search:focus-within,.story-entry:hover,.orbit-entry:hover,.spotify-profile:hover{transform:none}}
+
+/* Motion V3: stage presence */
+.home:before{content:"";position:absolute;z-index:0;width:48vw;height:48vw;right:-5vw;top:8%;border-radius:50%;background:radial-gradient(circle,rgba(var(--accent-rgb),.16),rgba(var(--accent-rgb),.035) 42%,transparent 70%);filter:blur(10px);animation:ambient-pulse 5.5s ease-in-out infinite;pointer-events:none}
+.sound-orb{filter:drop-shadow(0 28px 65px rgba(var(--accent-rgb),.16))}
+.orb-core{box-shadow:inset -25px -20px 60px #080c12,inset 18px 15px 42px rgba(255,255,255,.055),0 45px 110px rgba(0,0,0,.38),0 0 75px rgba(var(--accent-rgb),.14)!important}
+.brand:hover .brand-mark i,.brand:focus-visible .brand-mark i{animation-duration:.42s}
+.home h1{background:linear-gradient(100deg,var(--text) 15%,#a8c9ff 48%,var(--text) 75%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hero-rise .85s .12s var(--motion-soft) both,title-sheen 7s 1.2s ease-in-out infinite}
+.search button:hover{box-shadow:0 12px 32px rgba(var(--accent-rgb),.34);transform:translateY(-3px) scale(1.02)}
+.artist:not(.is-hidden) .artist-hero:after{content:"";position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(var(--accent-rgb),.09) 52%,transparent 68%);background-size:220% 100%;animation:artist-light-sweep 1.5s .25s var(--motion-soft) both}
+.album:hover{transform:translateY(-5px)}.album:hover .album__visual{box-shadow:0 38px 80px rgba(0,0,0,.46),0 0 34px rgba(var(--accent-rgb),.13)}
+.reveal{transform:translateY(38px) scale(.985);filter:blur(5px);transition:opacity .8s var(--motion-soft),transform .8s var(--motion-soft),filter .8s var(--motion-soft)}.reveal.is-visible{filter:none;transform:none}
+@keyframes ambient-pulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes title-sheen{0%,72%,100%{background-position:100% 50%}86%{background-position:0 50%}}
+@keyframes artist-light-sweep{from{opacity:0;background-position:100% 50%}35%{opacity:1}to{opacity:0;background-position:0 50%}}
+@media(prefers-reduced-motion:reduce){.home:before,.home h1,.artist:not(.is-hidden) .artist-hero:after{animation:none!important}.home h1{background:none;color:var(--text)}}
+
+/* Motion V4: immersive interaction layer */
+.motion-v4 body:before{content:"";position:fixed;z-index:9998;left:var(--cursor-x,-200px);top:var(--cursor-y,-200px);width:340px;height:340px;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(var(--accent-rgb),.075),transparent 68%);mix-blend-mode:screen;transition:opacity .3s}
+.motion-progress{position:fixed;z-index:10000;left:0;right:0;top:0;height:2px;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,#77aaff,#8c72ff,#61dcff);box-shadow:0 0 14px rgba(var(--accent-rgb),.7);pointer-events:none}
+.motion-ripple{position:fixed;z-index:9999;width:14px;height:14px;margin:-7px;border:1px solid rgba(170,205,255,.75);border-radius:50%;pointer-events:none;animation:motion-ripple .72s var(--motion-soft) forwards}
+.motion-v4 .sound-orb{transform:translate3d(var(--orb-x,0),var(--orb-y,0),0);transition:transform .12s linear;will-change:transform}
+.motion-v4 .sound-orb:before{box-shadow:0 0 45px rgba(var(--accent-rgb),.12)}
+.motion-v4 .brand{position:relative}.motion-v4 .brand:after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:1px;transform:scaleX(0);background:linear-gradient(90deg,transparent,rgba(150,195,255,.9),transparent);transition:transform .45s var(--motion-spring)}.motion-v4 .brand:hover:after{transform:scaleX(1)}
+.motion-v4 .album{transform-style:preserve-3d;will-change:transform;transition:transform .16s linear,box-shadow .35s var(--motion-soft)}
+.motion-v4 .album:hover{transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translateY(-8px) scale(1.018)}
+.motion-v4 .album:before{content:"";position:absolute;z-index:3;inset:0;border-radius:inherit;pointer-events:none;opacity:0;background:radial-gradient(circle at var(--glow-x,50%) var(--glow-y,50%),rgba(180,215,255,.16),transparent 38%);transition:opacity .25s}.motion-v4 .album:hover:before{opacity:1}
+.motion-v4 .album__visual{transform:translateZ(22px)}.motion-v4 .album h4,.motion-v4 .album__year,.motion-v4 .album__type{transform:translateZ(12px)}
+.motion-v4 .topbar{animation:topbar-drop .8s var(--motion-soft) both}
+.motion-v4 .home-path span{transition:transform .35s var(--motion-spring),color .3s}.motion-v4 .home-path span:hover{transform:translateY(-5px);color:var(--text)}
+.motion-v4 .member{transition:transform .32s var(--motion-spring),background .3s,border-color .3s}.motion-v4 .member:hover{transform:translateX(9px);background:rgba(var(--accent-rgb),.055);border-color:rgba(var(--accent-rgb),.25)}
+.motion-v4 .ranking-row,.motion-v4 .history-row{transition:transform .3s var(--motion-spring),background .3s}.motion-v4 .ranking-row:hover,.motion-v4 .history-row:hover{transform:translateX(7px);background:rgba(var(--accent-rgb),.05)}
+@keyframes motion-ripple{0%{opacity:1;transform:scale(.3)}100%{opacity:0;transform:scale(9)}}
+@keyframes topbar-drop{from{opacity:0;transform:translateY(-22px);backdrop-filter:blur(0)}to{opacity:1;transform:none}}
+@media(max-width:760px){.motion-v4 body:before{display:none}.motion-v4 .album:hover{transform:translateY(-5px)}}
+@media(prefers-reduced-motion:reduce){.motion-progress,.motion-ripple,.motion-v4 body:before{display:none!important}.motion-v4 .album:hover{transform:none!important}}
+
+/* Motion V4.1 layout guard: motion must never own layout */
+.motion-v4 .topbar{animation:topbar-fade .8s var(--motion-soft) both}
+.motion-v4 .sound-orb{transform:translate3d(var(--orb-x,0),calc(-50% + var(--orb-y,0)),0);transition:transform .12s linear,opacity .6s}
+@keyframes topbar-fade{from{opacity:0;filter:blur(6px)}to{opacity:1;filter:none}}

@@ -232,6 +232,60 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
 }
 initializeReveal();
 
+/* SoundScope Motion Director v4 */
+(function initializeMotionDirector() {
+  const reduced = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  if (reduced) return;
+  document.documentElement.classList.add("motion-v4");
+
+  const finePointer = window.matchMedia("(pointer:fine)").matches;
+  if (finePointer) {
+    document.addEventListener("pointermove", (event) => {
+      document.documentElement.style.setProperty("--cursor-x", `${event.clientX}px`);
+      document.documentElement.style.setProperty("--cursor-y", `${event.clientY}px`);
+    }, { passive: true });
+
+    document.addEventListener("pointermove", (event) => {
+      const card = event.target.closest(".album");
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      const rx = ((event.clientY - rect.top) / rect.height - .5) * -8;
+      const ry = ((event.clientX - rect.left) / rect.width - .5) * 10;
+      card.style.setProperty("--tilt-x", `${rx.toFixed(2)}deg`);
+      card.style.setProperty("--tilt-y", `${ry.toFixed(2)}deg`);
+      card.style.setProperty("--glow-x", `${((event.clientX - rect.left) / rect.width * 100).toFixed(1)}%`);
+      card.style.setProperty("--glow-y", `${((event.clientY - rect.top) / rect.height * 100).toFixed(1)}%`);
+    }, { passive: true });
+    document.addEventListener("pointerout", (event) => {
+      const card = event.target.closest(".album");
+      if (card && !card.contains(event.relatedTarget)) {
+        card.style.removeProperty("--tilt-x"); card.style.removeProperty("--tilt-y");
+      }
+    });
+  }
+
+  const progress = document.createElement("div");
+  progress.className = "motion-progress"; progress.setAttribute("aria-hidden", "true");
+  document.body.append(progress);
+  let ticking = false;
+  const updateScroll = () => {
+    const max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    progress.style.transform = `scaleX(${Math.min(1, scrollY / max)})`;
+    document.documentElement.style.setProperty("--scroll-y", `${scrollY}px`);
+    ticking = false;
+  };
+  addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(updateScroll); } }, { passive: true });
+  updateScroll();
+
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("button,.album,.brand");
+    if (!target) return;
+    const ripple = document.createElement("span");
+    ripple.className = "motion-ripple"; ripple.style.left = `${event.clientX}px`; ripple.style.top = `${event.clientY}px`;
+    document.body.append(ripple); ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+  });
+})();
+
 const storyController = window.SoundScopeStoryMode?.mount(elements.storyMode, {
   reducedMotion: window.matchMedia("(prefers-reduced-motion:reduce)").matches,
   onSpotify: (album, button, output) => lookupSpotifyAlbum({ title: album.title, year: album.year }, button, output)
