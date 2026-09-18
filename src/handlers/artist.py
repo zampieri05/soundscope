@@ -29,6 +29,7 @@ from src.utils.telemetry import InvocationMetrics, activate, deactivate, increme
 from src.services.coverartarchive import (
     CoverArtError,
     CoverNotFoundError,
+    cache_cover,
     get_cached_cover,
     validate_release_group_id,
 )
@@ -88,7 +89,13 @@ def _cover_response(event: dict[str, Any]) -> dict[str, Any]:
     try:
         body, content_type = get_cached_cover(release_group_id)
     except CoverNotFoundError:
-        return _response(404, {"error": "cover not found"})
+        # Lazy fill: the artist payload is returned immediately and only album
+        # covers that the browser actually renders trigger CAA work.
+        try:
+            cache_cover(release_group_id)
+            body, content_type = get_cached_cover(release_group_id)
+        except CoverArtError:
+            return _response(404, {"error": "cover not found"})
     except CoverArtError:
         logger.error("Private cover cache read failed")
         return _response(500, {"error": "internal server error"})
