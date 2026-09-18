@@ -19,6 +19,7 @@ from src.services.musicbrainz import client as musicbrainz_client
 from src.services.musicbrainz.client import MusicBrainzError, ArtistNotFoundError
 from src.services.theaudiodb import client as theaudiodb_client
 from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
+from src.services.coverartarchive import add_missing_covers
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 from src.utils.telemetry import increment, measure
@@ -315,6 +316,14 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         if failures:
             raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
         raise UsableArtistNotFoundError("Artista ausente.")
+
+    # TheAudioDB remains authoritative for existing covers. CAA is a bounded,
+    # best-effort fallback and only returns URLs served by this Lambda.
+    enriched = EnrichedArtist(
+        enriched.name, enriched.country, enriched.genre, enriched.formed_year,
+        enriched.biography, enriched.image_url, enriched.source_ids,
+        enriched.members, add_missing_covers(enriched.albums),
+    )
 
     serialized = asdict(enriched)
     if not extended_catalog:
