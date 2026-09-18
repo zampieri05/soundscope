@@ -23,3 +23,18 @@
 @keyframes cover-arrive{from{opacity:0;transform:scale(1.06);filter:blur(9px)}to{opacity:1;transform:none;filter:none}}
 @keyframes signal-scan{0%,100%{opacity:.15;transform:scaleX(.25)}50%{opacity:1;transform:scaleX(1.15)}}
 @media(prefers-reduced-motion:reduce){.brand-mark i,.sound-orb,.sound-orb:before,.sound-orb:after,.sound-orb i,.orb-core,.home-copy>*,.search-area,.home-path,.artist:not(.is-hidden) .artist-photo,.artist:not(.is-hidden) .artist-intro>*,.album__visual img,.signal-loader:after{animation:none!important}.album__visual:after{display:none}.search:focus-within,.story-entry:hover,.orbit-entry:hover,.spotify-profile:hover{transform:none}}
+
+/* Motion V3: stage presence */
+.home:before{content:"";position:absolute;z-index:0;width:48vw;height:48vw;right:-5vw;top:8%;border-radius:50%;background:radial-gradient(circle,rgba(var(--accent-rgb),.16),rgba(var(--accent-rgb),.035) 42%,transparent 70%);filter:blur(10px);animation:ambient-pulse 5.5s ease-in-out infinite;pointer-events:none}
+.sound-orb{filter:drop-shadow(0 28px 65px rgba(var(--accent-rgb),.16))}
+.orb-core{box-shadow:inset -25px -20px 60px #080c12,inset 18px 15px 42px rgba(255,255,255,.055),0 45px 110px rgba(0,0,0,.38),0 0 75px rgba(var(--accent-rgb),.14)!important}
+.brand:hover .brand-mark i,.brand:focus-visible .brand-mark i{animation-duration:.42s}
+.home h1{background:linear-gradient(100deg,var(--text) 15%,#a8c9ff 48%,var(--text) 75%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hero-rise .85s .12s var(--motion-soft) both,title-sheen 7s 1.2s ease-in-out infinite}
+.search button:hover{box-shadow:0 12px 32px rgba(var(--accent-rgb),.34);transform:translateY(-3px) scale(1.02)}
+.artist:not(.is-hidden) .artist-hero:after{content:"";position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(var(--accent-rgb),.09) 52%,transparent 68%);background-size:220% 100%;animation:artist-light-sweep 1.5s .25s var(--motion-soft) both}
+.album:hover{transform:translateY(-5px)}.album:hover .album__visual{box-shadow:0 38px 80px rgba(0,0,0,.46),0 0 34px rgba(var(--accent-rgb),.13)}
+.reveal{transform:translateY(38px) scale(.985);filter:blur(5px);transition:opacity .8s var(--motion-soft),transform .8s var(--motion-soft),filter .8s var(--motion-soft)}.reveal.is-visible{filter:none;transform:none}
+@keyframes ambient-pulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes title-sheen{0%,72%,100%{background-position:100% 50%}86%{background-position:0 50%}}
+@keyframes artist-light-sweep{from{opacity:0;background-position:100% 50%}35%{opacity:1}to{opacity:0;background-position:0 50%}}
+@media(prefers-reduced-motion:reduce){.home:before,.home h1,.artist:not(.is-hidden) .artist-hero:after{animation:none!important}.home h1{background:none;color:var(--text)}}
