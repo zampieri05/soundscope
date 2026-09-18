@@ -128,11 +128,39 @@ def get_cached_cover(
 def add_missing_covers(albums: list[EnrichedAlbum]) -> list[EnrichedAlbum]:
     """Fill only missing covers, concurrently and with a bounded CAA budget."""
     result = list(albums)
-    candidates = [
-        (index, album.musicbrainz_release_group_id)
+    # Spend the bounded CAA budget on the records users are most likely to
+    # see first. MusicBrainz can return hundreds of release groups, including
+    # singles, demos, live recordings and compilations before core albums.
+    # Keep the final discography order untouched; this ranking is only for
+    # choosing which missing covers to fetch.
+    def cover_priority(item: tuple[int, EnrichedAlbum]) -> tuple[int, int, int]:
+        index, album = item
+        secondary = set(album.secondary_types or [])
+        if album.primary_type == "Album" and not secondary:
+            tier = 0
+        elif album.primary_type == "Album":
+            tier = 1
+        elif album.primary_type == "EP":
+            tier = 2
+        elif album.primary_type == "Single":
+            tier = 3
+        else:
+            tier = 4
+        try:
+            year = int(album.year or album.first_release_date[:4])
+        except (TypeError, ValueError):
+            year = 9999
+        return tier, year, index
+
+    missing = [
+        (index, album)
         for index, album in enumerate(result)
         if not album.cover_url and album.musicbrainz_release_group_id
-    ][:MAX_CAA_LOOKUPS]
+    ]
+    candidates = [
+        (index, album.musicbrainz_release_group_id)
+        for index, album in sorted(missing, key=cover_priority)[:MAX_CAA_LOOKUPS]
+    ]
     if not candidates:
         return result
     with ThreadPoolExecutor(max_workers=MAX_CAA_WORKERS) as executor:
