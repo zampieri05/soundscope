@@ -103,8 +103,11 @@ function createAlbumCard(album) {
   const card = document.createElement("article"); card.className = "album";
   const visual = document.createElement("div"); visual.className = "album__visual";
   const fallback = albumPlaceholder(album.title); visual.append(fallback);
-  if (album.cover_url) {
-    const image = document.createElement("img"); image.src = album.cover_url; image.alt = `Capa de ${album.title || "lançamento sem título"}`; image.loading = "lazy"; image.decoding = "async";
+  const coverUrl = album.cover_url || (album.musicbrainz_release_group_id
+    ? `${API_BASE_URL}/cover/${encodeURIComponent(album.musicbrainz_release_group_id)}`
+    : "");
+  if (coverUrl) {
+    const image = document.createElement("img"); image.src = coverUrl; image.alt = `Capa de ${album.title || "lançamento sem título"}`; image.loading = "lazy"; image.decoding = "async";
     image.onload = () => fallback.remove(); image.onerror = () => image.remove(); visual.append(image);
   }
   const year = document.createElement("p"); year.className = "album__year"; year.textContent = album.year || "Ano não informado";
