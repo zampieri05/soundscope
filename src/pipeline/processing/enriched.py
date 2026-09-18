@@ -1,6 +1,6 @@
 """Orquestração resiliente multi-source de artistas enriquecidos."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import logging
 from typing import Any, TypedDict
 import unicodedata
@@ -8,6 +8,7 @@ import uuid
 
 from src.models import EnrichedArtist, NormalizedArtist
 from src.pipeline.enrichment.artist import enrich_artist, partial_artist, _comparable_name
+from src.pipeline.enrichment.covers import enrich_missing_covers
 from src.pipeline.ingestion.errors import UsableArtistNotFoundError
 from src.pipeline.ingestion.theaudiodb import _first_artist_id
 from src.pipeline.transformers import (
@@ -315,6 +316,10 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         if failures:
             raise UsableArtistNotFoundError("Nenhuma fonte encontrou o artista.")
         raise UsableArtistNotFoundError("Artista ausente.")
+
+    # Executado antes da persistência processada: hits no cache S3 reutilizam as
+    # URLs e não voltam a consultar o CAA a cada requisição.
+    enriched = replace(enriched, albums=enrich_missing_covers(enriched.albums))
 
     serialized = asdict(enriched)
     if not extended_catalog:
