@@ -1,6 +1,6 @@
 """Orquestração resiliente multi-source de artistas enriquecidos."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import logging
 from typing import Any, TypedDict
 import unicodedata
@@ -319,11 +319,11 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
 
     # TheAudioDB remains authoritative for existing covers. CAA is a bounded,
     # best-effort fallback and only returns URLs served by this Lambda.
-    enriched = EnrichedArtist(
-        enriched.name, enriched.country, enriched.genre, enriched.formed_year,
-        enriched.biography, enriched.image_url, enriched.source_ids,
-        enriched.members, add_missing_covers(enriched.albums),
-    )
+    #
+    # Keep every other EnrichedArtist field untouched. Reconstructing the
+    # dataclass positionally here is fragile as the model evolves and can map
+    # albums into the wrong field. replace() makes the intent explicit.
+    enriched = replace(enriched, albums=add_missing_covers(enriched.albums))
 
     serialized = asdict(enriched)
     if not extended_catalog:
