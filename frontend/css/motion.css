@@ -58,3 +58,8 @@
 @keyframes topbar-drop{from{opacity:0;transform:translateY(-22px);backdrop-filter:blur(0)}to{opacity:1;transform:none}}
 @media(max-width:760px){.motion-v4 body:before{display:none}.motion-v4 .album:hover{transform:translateY(-5px)}}
 @media(prefers-reduced-motion:reduce){.motion-progress,.motion-ripple,.motion-v4 body:before{display:none!important}.motion-v4 .album:hover{transform:none!important}}
+
+/* Motion V4.1 layout guard: motion must never own layout */
+.motion-v4 .topbar{animation:topbar-fade .8s var(--motion-soft) both}
+.motion-v4 .sound-orb{transform:translate3d(var(--orb-x,0),calc(-50% + var(--orb-y,0)),0);transition:transform .12s linear,opacity .6s}
+@keyframes topbar-fade{from{opacity:0;filter:blur(6px)}to{opacity:1;filter:none}}
