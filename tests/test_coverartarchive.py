@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 from botocore.exceptions import ClientError
@@ -69,6 +70,31 @@ class CoverCacheTests(unittest.TestCase):
     def test_external_failure_does_not_fail_album_pipeline(self, _cache):
         album = EnrichedAlbum("Album", musicbrainz_release_group_id=MBID)
         self.assertEqual(add_missing_covers([album]), [album])
+
+    @patch("src.services.coverartarchive.cache_cover")
+    def test_core_albums_are_prioritized_within_cover_budget(self, cache):
+        cache.side_effect = lambda mbid: f"https://api.example.test/cover/{mbid}"
+        items = [
+            EnrichedAlbum(
+                f"Single {index}",
+                year="2000",
+                musicbrainz_release_group_id=str(uuid.UUID(int=index + 1)),
+                primary_type="Single",
+            )
+            for index in range(20)
+        ]
+        core_mbid = str(uuid.UUID(int=100))
+        items.append(EnrichedAlbum(
+            "Core Album",
+            year="2001",
+            musicbrainz_release_group_id=core_mbid,
+            primary_type="Album",
+        ))
+
+        enriched = add_missing_covers(items)
+
+        self.assertEqual(cache.call_count, 20)
+        self.assertEqual(enriched[-1].cover_url, f"https://api.example.test/cover/{core_mbid}")
 
     @patch("src.services.coverartarchive.cache_cover")
     def test_existing_theaudiodb_cover_is_never_replaced(self, cache):
