@@ -1,0 +1,56 @@
+/* SoundScope 2.1 Performance Hotfix
+   Keep the Motion V4.1 look while giving text input priority. */
+
+html.is-typing .home:before,
+html.is-typing .sound-orb,
+html.is-typing .sound-orb:before,
+html.is-typing .sound-orb:after,
+html.is-typing .sound-orb i,
+html.is-typing .orb-core,
+html.is-typing .home h1 {
+  animation-play-state: paused !important;
+}
+
+html.is-typing .motion-v4 body:before {
+  opacity: 0 !important;
+}
+
+html.is-typing .sound-orb {
+  transition: opacity .18s ease !important;
+}
+
+@media (hover:none), (pointer:coarse) {
+  .motion-v4 .album {
+    will-change: auto;
+    transform-style: flat;
+  }
+
+  .motion-v4 .album__visual,
+  .motion-v4 .album h4,
+  .motion-v4 .album__year,
+  .motion-v4 .album__type {
+    transform: none;
+  }
+
+  .home:before {
+    filter: blur(6px);
+  }
+}
+
+@media (max-width:760px) {
+  .sound-orb,
+  .motion-v4 .album {
+    will-change: auto;
+  }
+
+  .album__visual img {
+    animation-duration: .35s;
+  }
+}
+
+
+/* Dedicated artist view */
+body.artist-page-open #inicio{display:none}
+body.artist-page-open #result{padding-top:82px}
+body.artist-page-open .topbar{position:absolute}
+@media(max-width:700px){body.artist-page-open #result{padding-top:70px}}

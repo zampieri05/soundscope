@@ -198,7 +198,9 @@ async function searchArtist(artistName) {
     if (response.status === 404) throw new Error("NOT_FOUND");
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
     renderArtist(await response.json()); setState("success");
-    elements.result.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.body.classList.add("artist-page-open");
+    history.pushState({ soundScopeArtist: artistName }, "", `?artist=${encodeURIComponent(artistName)}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => elements.result.focus({ preventScroll: true }), 500);
   } catch (error) {
     setState("error", friendlyError(error)); elements.error.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -207,7 +209,7 @@ async function searchArtist(artistName) {
   }
 }
 
-function focusSearch() { elements.home.scrollIntoView({ behavior: "smooth" }); window.setTimeout(() => elements.input.focus(), 350); }
+function focusSearch() { document.body.classList.remove("artist-page-open"); history.pushState({}, "", location.pathname); window.scrollTo({ top: 0, behavior: "smooth" }); window.setTimeout(() => elements.input.focus(), 350); }
 function toggleDataPanel(force) {
   const open = typeof force === "boolean" ? force : !elements.dataPanel.classList.contains("is-open");
   elements.dataPanel.classList.toggle("is-open", open); elements.backdrop.classList.toggle("is-open", open);
@@ -231,6 +233,9 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
 initializeReveal();
+window.addEventListener("popstate", () => { const artist = new URLSearchParams(location.search).get("artist"); if (artist) { elements.input.value = artist; searchArtist(artist, true); } else { document.body.classList.remove("artist-page-open"); setState("idle"); window.scrollTo({ top: 0 }); } });
+const initialArtist = new URLSearchParams(location.search).get("artist");
+if (initialArtist) { elements.input.value = initialArtist; window.setTimeout(() => searchArtist(initialArtist), 0); }
 
 /* SoundScope Motion Director v4 */
 (function initializeMotionDirector() {
