@@ -189,6 +189,7 @@ function friendlyError(error) {
 }
 
 async function searchArtist(artistName) {
+  if (!document.body.classList.contains("artist-route")) { window.location.href = `artist.html?artist=${encodeURIComponent(artistName)}`; return; }
   if (requestInProgress) return;
   requestInProgress = true; elements.message.textContent = ""; setState("loading");
   elements.loading.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -199,7 +200,7 @@ async function searchArtist(artistName) {
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
     renderArtist(await response.json()); setState("success");
     document.body.classList.add("artist-page-open");
-    history.pushState({ soundScopeArtist: artistName }, "", `?artist=${encodeURIComponent(artistName)}`);
+    history.replaceState({ soundScopeArtist: artistName }, "", `artist.html?artist=${encodeURIComponent(artistName)}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => elements.result.focus({ preventScroll: true }), 500);
   } catch (error) {
@@ -209,7 +210,7 @@ async function searchArtist(artistName) {
   }
 }
 
-function focusSearch() { document.body.classList.remove("artist-page-open"); history.pushState({}, "", location.pathname); window.scrollTo({ top: 0, behavior: "smooth" }); window.setTimeout(() => elements.input.focus(), 350); }
+function focusSearch() { window.location.href = "index.html"; }
 function toggleDataPanel(force) {
   const open = typeof force === "boolean" ? force : !elements.dataPanel.classList.contains("is-open");
   elements.dataPanel.classList.toggle("is-open", open); elements.backdrop.classList.toggle("is-open", open);
@@ -233,9 +234,8 @@ if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
 initializeReveal();
-window.addEventListener("popstate", () => { const artist = new URLSearchParams(location.search).get("artist"); if (artist) { elements.input.value = artist; searchArtist(artist, true); } else { document.body.classList.remove("artist-page-open"); setState("idle"); window.scrollTo({ top: 0 }); } });
 const initialArtist = new URLSearchParams(location.search).get("artist");
-if (initialArtist) { elements.input.value = initialArtist; window.setTimeout(() => searchArtist(initialArtist), 0); }
+if (document.body.classList.contains("artist-route")) { if (initialArtist) { elements.input.value = initialArtist; window.setTimeout(() => searchArtist(initialArtist), 0); } else { window.location.replace("index.html"); } }
 
 /* SoundScope Motion Director v4 */
 (function initializeMotionDirector() {
