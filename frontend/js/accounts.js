@@ -10,6 +10,13 @@
   const recovery=$("#account-recovery"), recoveryForm=$("#account-recovery-form"), reset=$("#account-reset"), resetForm=$("#account-reset-form"), menu=$("#account-menu");
   let pendingEmail = "";
   const sessionKey = "soundscope_account_session";
+  const oauthVerifierKey="soundscope_oauth_verifier", oauthStateKey="soundscope_oauth_state";
+  const b64url=(bytes)=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  const randomToken=(n=32)=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return b64url(a)};
+  const sha256=async(s)=>new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)));
+  const oauthBase=`https://${cfg.domain}.auth.${cfg.region}.amazoncognito.com`;
+  const startGoogle=async()=>{const verifier=randomToken(48),state=randomToken(24),challenge=b64url(await sha256(verifier));sessionStorage.setItem(oauthVerifierKey,verifier);sessionStorage.setItem(oauthStateKey,state);const q=new URLSearchParams({identity_provider:"Google",response_type:"code",client_id:cfg.clientId,redirect_uri:cfg.redirectUri,scope:"openid email profile",state,code_challenge_method:"S256",code_challenge:challenge});location.assign(`${oauthBase}/oauth2/authorize?${q}`)};
+  const finishOAuth=async()=>{const q=new URLSearchParams(location.search),code=q.get("code");if(!code)return false;const state=q.get("state"),expected=sessionStorage.getItem(oauthStateKey),verifier=sessionStorage.getItem(oauthVerifierKey);if(!state||state!==expected||!verifier)throw new Error("Não foi possível validar o retorno do Google.");const body=new URLSearchParams({grant_type:"authorization_code",client_id:cfg.clientId,code,redirect_uri:cfg.redirectUri,code_verifier:verifier});const r=await fetch(`${oauthBase}/oauth2/token`,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});const a=await r.json();if(!r.ok||!a.id_token)throw new Error(a.error_description||"Não foi possível concluir o login com Google.");const session={idToken:a.id_token,accessToken:a.access_token,refreshToken:a.refresh_token,expiresAt:Date.now()+Number(a.expires_in||3600)*1000};sessionStorage.setItem(sessionKey,JSON.stringify(session));sessionStorage.removeItem(oauthVerifierKey);sessionStorage.removeItem(oauthStateKey);history.replaceState({},document.title,location.pathname);renderSession(session);return true};
   const api = async (target, body) => {
     const r = await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-amz-json-1.1","X-Amz-Target":`AWSCognitoIdentityProviderService.${target}`},body:JSON.stringify(body)});
     const data = await r.json().catch(()=>({}));
@@ -40,6 +47,6 @@
   $("#account-menu-platforms")?.addEventListener("click",()=>{menu?.classList.add("is-hidden");$("#provider-switcher")?.click()});
   $("#account-menu-profile")?.addEventListener("click",()=>{menu?.classList.add("is-hidden");open();status.textContent="Seu perfil SoundScope está conectado. A edição do perfil entra na próxima etapa."});
   document.addEventListener("click",(e)=>{if(menu&&!menu.classList.contains("is-hidden")&&!menu.contains(e.target)&&!entry.contains(e.target))menu.classList.add("is-hidden")});
-  modal.querySelectorAll("[data-account-provider]").forEach(button=>button.addEventListener("click",()=>{status.textContent=`${button.dataset.accountProvider}: vamos ativar este provedor na próxima etapa.`}));
-  let stored=null;try{stored=JSON.parse(sessionStorage.getItem(sessionKey)||"null")}catch(_){}if(stored?.expiresAt>Date.now())renderSession(stored);else sessionStorage.removeItem(sessionKey);
+  modal.querySelectorAll("[data-account-provider]").forEach(button=>button.addEventListener("click",()=>{if(button.dataset.accountProvider==="Google"){status.textContent="Abrindo Google…";startGoogle().catch(err=>status.textContent=messageFor(err));return}status.textContent=`${button.dataset.accountProvider}: vamos ativar este provedor na próxima etapa.`}));
+  finishOAuth().then(done=>{if(done)return;let stored=null;try{stored=JSON.parse(sessionStorage.getItem(sessionKey)||"null")}catch(_){}if(stored?.expiresAt>Date.now())renderSession(stored);else sessionStorage.removeItem(sessionKey)}).catch(err=>{sessionStorage.removeItem(oauthVerifierKey);sessionStorage.removeItem(oauthStateKey);history.replaceState({},document.title,location.pathname);open();status.textContent=messageFor(err)});
 })();
