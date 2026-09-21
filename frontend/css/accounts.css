@@ -39,3 +39,17 @@ html.account-open .cursor-glow{display:none!important}
   .account-entry__user #account-name{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spotify-button{padding-left:14px;padding-right:14px}
 }
+
+
+/* Unified music connection control */
+.music-connect{height:44px;display:flex;align-items:center;padding:3px;border:1px solid rgba(158,171,187,.16);border-radius:13px;background:linear-gradient(135deg,rgba(18,27,41,.9),rgba(12,18,28,.78));box-shadow:inset 0 1px rgba(255,255,255,.025);overflow:hidden}
+.music-connect .provider-switcher{height:36px;min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#aab6c7;font-size:12px;font-weight:600}
+.music-connect .provider-switcher:hover,.music-connect .provider-switcher[aria-expanded="true"]{background:rgba(91,151,255,.09);color:var(--text)}
+.music-connect__chevron{margin-left:7px;color:var(--accent);font-size:10px}
+.music-connect__divider{width:1px;height:20px;flex:0 0 1px;background:rgba(255,255,255,.09)}
+.music-connect .spotify-button,.music-connect .spotify-disconnect{height:36px;min-height:36px;margin-left:3px;border-radius:9px;box-shadow:none}
+.music-connect .spotify-button{padding:0 13px;background:rgba(30,215,96,.13);color:#72e99b}
+.music-connect .spotify-button:hover{background:#1ed760;color:#06180c;transform:none}
+.music-connect .spotify-button svg{width:17px;height:17px}
+.music-connect .spotify-disconnect{border:0;background:rgba(30,215,96,.08);color:#8de5ac}
+@media(max-width:700px){.music-connect{height:42px}.music-connect .provider-switcher{width:40px;padding:0;font-size:0}.music-connect .provider-switcher:before{content:"•••";font-size:11px;letter-spacing:1px}.music-connect__chevron{display:none}.music-connect .spotify-button{padding:0 10px}.music-connect .spotify-button span{display:none}.music-connect .spotify-disconnect{max-width:42px;padding:0 10px;font-size:0}.music-connect .spotify-disconnect span{font-size:13px;margin:0}}
