@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="SoundScope — histórias, integrantes e discografias de artistas que marcaram a música.">
+  <meta name="theme-color" content="#0b0f17">
+  <title>Artista | SoundScope</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <link rel="stylesheet" href="css/performance.css">
+  <link rel="stylesheet" href="css/providers.css">
+  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" defer></script>
+  <script src="js/apple-music.js" defer></script>
+  <script src="js/spotify-auth.js" defer></script>
+  <script src="js/spotify-catalog.js" defer></script>
+  <script src="js/spotify-insights.js" defer></script>
+  <script src="js/spotify-history.js" defer></script>
+  <script src="js/spotify-orbit.js" defer></script>
+  <script src="js/orbit-share.js" defer></script>
+  <script src="js/discography.js" defer></script>
+  <script src="js/story-mode.js" defer></script>
+  <script src="js/app.js" defer></script>
+  <script src="js/performance.js" defer></script>
+  <script src="js/providers.js" defer></script>
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/soundscope-icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+</head>
+<body class="artist-page-open artist-route">
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <header class="topbar">
+    <a class="brand" href="#inicio" aria-label="SoundScope, início"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a>
+    <nav aria-label="Navegação principal"><a class="is-active" href="#inicio" aria-current="page">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a><a class="is-hidden" id="insights-nav" href="#meu-soundscope">Meu SoundScope</a></nav>
+    <div class="topbar-actions">
+      <button class="provider-switcher" id="provider-switcher" type="button" aria-expanded="false" aria-controls="provider-panel">Plataformas <span aria-hidden="true">⌄</span></button>
+      <button class="spotify-button" id="spotify-connect" type="button" aria-describedby="spotify-status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.58 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.28-1.75-8.74-.96a.62.62 0 1 1-.28-1.2c3.78-.87 7.03-.5 9.67 1.1.3.18.39.57.2.86Zm1.22-2.7a.77.77 0 0 1-1.06.26c-2.68-1.65-6.77-2.12-9.94-1.16a.77.77 0 1 1-.45-1.48c3.63-1.1 8.14-.57 11.2 1.31.37.23.48.7.25 1.06Zm.1-2.8C14.69 9 9.38 8.82 6.32 9.75a.93.93 0 1 1-.54-1.77c3.52-1.07 9.38-.86 13.07 1.33a.92.92 0 0 1-.94 1.6Z"/></svg><span>Conectar com Spotify</span></button>
+      <button class="spotify-disconnect is-hidden" id="spotify-disconnect" type="button"><span aria-hidden="true">✓</span> Spotify conectado</button>
+      <button class="text-button" id="nav-search" type="button">Buscar <span aria-hidden="true">↗</span></button>
+    </div>
+    <p class="spotify-status" id="spotify-status" role="status" aria-live="polite"></p>
+    <aside class="provider-panel is-hidden" id="provider-panel" aria-label="Plataformas de música">
+      <header><div><small>SoundScope 2.1</small><strong>Suas plataformas</strong></div><button id="provider-close" type="button" aria-label="Fechar">×</button></header>
+      <p>Conecte apenas os serviços que você usa. Cada dado mantém sua plataforma de origem.</p>
+      <div class="provider-card provider-card--spotify"><span class="provider-icon">●</span><div><strong>Spotify</strong><small id="provider-spotify-state">Disponível</small></div><button id="provider-spotify-action" type="button">Conectar</button></div>
+      <div class="provider-card provider-card--apple"><span class="provider-icon">♪</span><div><strong>Apple Music</strong><small id="provider-apple-state">Preparando integração</small></div><button id="apple-music-connect" type="button">Conectar</button></div>
+      <div class="provider-card provider-card--deezer"><span class="provider-icon">≋</span><div><strong>Deezer</strong><small>Próxima etapa</small></div><button type="button" disabled>Em breve</button></div>
+      <p class="provider-message" id="provider-message" role="status" aria-live="polite"></p>
+    </aside>
+  </header>
+
+  <main id="conteudo">
+    <section class="home" id="inicio" aria-labelledby="hero-title">
+      <div class="ambient" aria-hidden="true"></div>
+      <div class="sound-orb" id="sound-orb" aria-hidden="true"><div class="orb-core"></div><i></i><i></i><i></i></div>
+      <div class="home-copy">
+        <p class="kicker"><span></span> Música é um universo</p>
+        <h1 id="hero-title">Descubra o som<br>por trás do nome.</h1>
+        <p>Pesquise um artista e atravesse histórias, integrantes e discografias em uma experiência feita para explorar.</p>
+      </div>
+      <div class="search-area">
+        <p class="search-prompt">Quem você quer ouvir?</p>
+        <form class="search" id="search-form" role="search" novalidate>
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4 4"></path></svg>
+          <label class="sr-only" for="artist-input">Busque um artista ou banda</label>
+          <input id="artist-input" name="artist" type="search" placeholder="Busque um artista ou banda..." autocomplete="off" maxlength="120" aria-describedby="form-message">
+          <kbd aria-hidden="true">CTRL&nbsp;+&nbsp;K</kbd>
+          <button id="search-button" type="submit"><span>Buscar</span><b aria-hidden="true">→</b></button>
+        </form>
+        <p class="form-message" id="form-message" role="alert" aria-live="polite"></p>
+      </div>
+      <div class="home-path" aria-label="Explore no SoundScope">
+        <span><b>01</b> Pesquise artistas</span><span><b>02</b> Explore suas histórias</span><span><b>03</b> Conecte seu universo</span>
+      </div>
+    </section>
+
+    <section class="loading is-hidden" id="loading-state" aria-live="polite" aria-label="Buscando artista">
+      <div class="signal-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <p>Buscando artista</p><span>Sintonizando histórias, pessoas e lançamentos</span>
+    </section>
+
+    <section class="error-state is-hidden" id="error-state" role="alert" aria-live="assertive">
+      <p class="kicker"><span></span> Sinal não encontrado</p><h2>Não conseguimos encontrar esse artista.</h2><p id="error-message"></p>
+      <button class="outline-button" id="retry-search" type="button">Tentar outra busca <span>→</span></button>
+    </section>
+
+    <article class="artist is-hidden" id="result" aria-labelledby="artist-name" tabindex="-1">
+      <header class="artist-hero">
+        <div class="artist-photo"><img id="artist-image" alt="" src="assets/artist-placeholder.svg"><div></div></div>
+        <div class="artist-intro">
+          <p class="kicker"><span></span> Perfil do artista</p><h2 id="artist-name"></h2>
+          <p class="artist-meta" id="artist-meta"></p><p class="artist-formed" id="artist-formed"></p>
+        </div>
+        <span class="vertical-note" aria-hidden="true">SOUNDSCOPE / ARQUIVO</span>
+      </header>
+
+      <nav class="artist-nav" aria-label="Seções do artista">
+        <a href="#visao-geral" class="is-active">Visão geral</a><a href="#historia">A história</a><a href="#integrantes" id="members-nav">Integrantes</a><a href="#discografia" id="albums-nav">Discografia</a>
+        <button id="new-search" type="button">Nova busca <span>⌕</span></button>
+      </nav>
+
+      <section class="story-entry" aria-labelledby="story-entry-title">
+        <div><p>Experiência editorial</p><h3 id="story-entry-title">Story Mode</h3><span>Uma trajetória em registros.</span></div>
+        <button id="story-mode-open" type="button" aria-expanded="false" aria-controls="story-mode">Explorar a história <b aria-hidden="true">→</b></button>
+      </section>
+
+      <section class="overview reveal" id="visao-geral" aria-labelledby="overview-title">
+        <div class="section-index"><span>01</span><i></i><p>Visão geral</p></div>
+        <div><h3 id="overview-title">Uma identidade<br>em frequências.</h3><dl class="facts" aria-label="Informações do artista">
+          <div id="genre-fact"><dt>Gênero</dt><dd id="artist-genre"></dd></div><div id="country-fact"><dt>Origem</dt><dd id="artist-country"></dd></div><div id="year-fact"><dt>Desde</dt><dd id="artist-year"></dd></div>
+        </dl></div>
+      </section>
+
+      <section class="story reveal" id="historia" aria-labelledby="story-title">
+        <div class="section-index"><span>02</span><i></i><p>A história</p></div>
+        <div class="story-layout"><h3 id="story-title">A história</h3><div class="biography-wrap" id="biography-wrap"><p id="artist-biography"></p><button class="read-more is-hidden" id="read-more" type="button" aria-expanded="false">Ler mais <span>↓</span></button></div></div>
+      </section>
+
+      <section class="members reveal" id="integrantes" aria-labelledby="members-title">
+        <div class="section-heading"><div class="section-index"><span>03</span><i></i><p>Integrantes</p></div><div><h3 id="members-title">Por trás do som</h3><p>As pessoas que deram forma à identidade do artista.</p></div></div>
+        <div class="members-list" id="artist-members"></div>
+      </section>
+
+      <section class="discography reveal" id="discografia" aria-labelledby="albums-title">
+        <div class="section-heading"><div class="section-index"><span>04</span><i></i><p>Discografia</p></div><div><h3 id="albums-title">Discografia</h3><p id="timeline-range">Lançamentos em ordem cronológica</p></div></div>
+        <div class="discography-filters" id="discography-filters" role="tablist" aria-label="Categorias da discografia"></div>
+        <div class="timeline" id="artist-albums" tabindex="0" aria-label="Linha do tempo da discografia" role="tabpanel"></div>
+        <button class="load-more is-hidden" id="albums-load-more" type="button">Carregar mais</button>
+      </section>
+
+      <button class="data-trigger" id="data-trigger" type="button" aria-expanded="false" aria-controls="data-panel"><span class="data-dot"></span> Fontes dos dados <b>+</b></button>
+      <aside class="data-panel" id="data-panel" aria-hidden="true" aria-labelledby="data-title">
+        <button id="data-close" type="button" aria-label="Fechar painel">×</button><p class="kicker">Sinal SoundScope</p><h3 id="data-title">Fontes dos dados</h3>
+        <div><span>Fontes conectadas</span><strong id="source-names"></strong></div><div id="source-ids-wrap"><span>IDs de origem</span><code id="source-ids"></code></div>
+        <small>Informações reunidas de múltiplas fontes musicais.</small>
+      </aside><div class="panel-backdrop" id="panel-backdrop"></div>
+    </article>
+
+    <section class="story-mode is-hidden" id="story-mode" aria-hidden="true" aria-labelledby="story-mode-title" aria-modal="true" role="dialog">
+      <header class="story-mode__bar"><a class="brand" href="#inicio" tabindex="-1">SoundScope</a><p data-story-progress aria-live="polite"></p><button data-story-close type="button">Fechar <span aria-hidden="true">×</span></button></header>
+      <div data-story-content></div>
+    </section>
+
+    <section class="insights is-hidden" id="meu-soundscope" aria-labelledby="insights-title">
+      <header class="insights-hero">
+        <div><p class="kicker"><span></span> Meu SoundScope</p><h2 id="insights-title">Seu universo<br>musical.</h2><p>Uma leitura dos artistas e músicas que mais acompanharam você.</p></div>
+        <a class="spotify-profile is-hidden" id="spotify-profile" target="_blank" rel="noopener noreferrer"><img id="spotify-profile-image" alt=""><span><small>Perfil Spotify</small><strong id="spotify-profile-name"></strong></span><b aria-hidden="true">↗</b></a>
+      </header>
+      <div class="period-selector" role="group" aria-label="Período dos dados">
+        <button class="is-active" type="button" data-range="short_term" aria-pressed="true">4 semanas</button><button type="button" data-range="medium_term" aria-pressed="false">6 meses</button><button type="button" data-range="long_term" aria-pressed="false">Longo prazo</button>
+      </div>
+      <p class="insights-status" id="insights-status" role="status" aria-live="polite"></p>
+      <section class="orbit-entry" aria-labelledby="orbit-entry-title">
+        <div><p>Experiência 01</p><h3 id="orbit-entry-title">Minha Órbita</h3><span>Seu universo musical agora.</span></div>
+        <button id="orbit-enter" type="button" aria-expanded="false" aria-controls="minha-orbita">Entrar na Minha Órbita <b aria-hidden="true">→</b></button>
+      </section>
+      <section class="orbit is-hidden" id="minha-orbita" aria-labelledby="orbit-title">
+        <header><div><p>Mapa pessoal / <span data-orbit-range>4 semanas</span></p><h3 id="orbit-title">Seu universo musical,<br>navegável.</h3></div><button id="orbit-close" type="button">Fechar <span aria-hidden="true">×</span></button></header>
+        <p class="sr-only" data-orbit-status role="status" aria-live="polite"></p>
+        <div class="orbit-composition">
+          <div class="orbit-stage" data-orbit-stage><div class="orbit-center" aria-hidden="true"><small>Meu</small><strong>Sound<br>Scope</strong></div></div>
+          <aside class="orbit-panel" data-orbit-panel aria-live="polite"></aside>
+        </div>
+        <button class="orbit-share-trigger" id="orbit-share-open" type="button" aria-haspopup="dialog" aria-controls="orbit-share">Compartilhar minha órbita <span aria-hidden="true">↗</span></button>
+        <p class="orbit-note">As linhas indicam apenas que estes artistas pertencem à sua órbita. A dimensão reflete a posição no ranking do período, não quantidade de audições.</p>
+      </section>
+      <section class="insights-section" aria-labelledby="top-artists-title"><div class="insights-heading"><p>01 / Afinidades</p><h3 id="top-artists-title">Artistas mais ouvidos</h3></div><div class="ranking" id="top-artists"></div></section>
+      <section class="insights-section" aria-labelledby="top-tracks-title"><div class="insights-heading"><p>02 / Repertório</p><h3 id="top-tracks-title">Músicas mais ouvidas</h3></div><div class="ranking" id="top-tracks"></div></section>
+      <section class="insights-section history-section" aria-labelledby="history-title">
+        <div class="insights-heading history-heading"><p>03 / Histórico</p><div><h3 id="history-title">Últimas escutas</h3><button class="history-refresh" id="history-refresh" type="button">Atualizar</button></div></div>
+        <p class="insights-status" id="history-status" role="status" aria-live="polite"></p>
+        <div class="history" id="spotify-history"></div>
+      </section>
+    </section>
+  </main>
+  <section class="orbit-share is-hidden" id="orbit-share" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="orbit-share-title" aria-describedby="orbit-share-description">
+    <div class="orbit-share__backdrop" data-share-close></div>
+    <div class="orbit-share__dialog">
+      <header class="orbit-share__header">
+        <div><p>SoundScope Share V1</p><h2 id="orbit-share-title">Sua órbita, pronta para compartilhar.</h2></div>
+        <button class="orbit-share__close" type="button" data-share-close aria-label="Fechar preview">Fechar <span aria-hidden="true">×</span></button>
+      </header>
+      <div class="orbit-share__content">
+        <div class="orbit-share__preview"><canvas width="1080" height="1920" data-share-canvas aria-label="Preview vertical da Minha Órbita"></canvas></div>
+        <aside class="orbit-share__controls">
+          <p id="orbit-share-description">A imagem é criada neste navegador com os artistas já carregados. Nenhum dado é enviado ao SoundScope.</p>
+          <button type="button" data-share-generate>Gerar Story <span aria-hidden="true">→</span></button>
+          <button type="button" data-share-download disabled>Baixar PNG <span aria-hidden="true">↓</span></button>
+          <button type="button" data-share-share disabled>Compartilhar <span aria-hidden="true">↗</span></button>
+          <p class="orbit-share__status" data-share-status role="status" aria-live="polite"></p>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <footer class="site-footer"><a class="brand" href="#inicio">SoundScope</a><p>Música, dados e histórias em uma só frequência.</p><span>© 2026</span></footer>
+</body>
+</html>
