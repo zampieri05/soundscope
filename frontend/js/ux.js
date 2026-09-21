@@ -75,6 +75,34 @@
   quickInput.addEventListener("input", () => suggest(quickInput.value));
   quickInput.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); go(quickInput.value); } });
   panel.addEventListener("click", (event) => { if (event.target === panel) close(); });
+  const loadRabbitHole = async () => {
+    if (!document.body.classList.contains("artist-route")) return;
+    const artistName = new URLSearchParams(location.search).get("artist");
+    const result = document.querySelector("#result");
+    if (!artistName || !result) return;
+    const section = document.createElement("section");
+    section.className = "rabbit-hole";
+    section.innerHTML = '<div class="rabbit-hole__heading"><p>Rabbit Hole</p><h2>Continue explorando</h2><span>Conexões documentadas pelo MusicBrainz</span></div><div class="rabbit-hole__grid" aria-live="polite"></div>';
+    result.append(section);
+    const grid = section.querySelector(".rabbit-hole__grid");
+    try {
+      const response = await fetch("https://cj2v75mr48.execute-api.us-east-1.amazonaws.com/artist/" + encodeURIComponent(artistName) + "?related=1");
+      if (!response.ok) throw new Error("RELATED_FAILED");
+      const data = await response.json();
+      const artists = Array.isArray(data.artists) ? data.artists : [];
+      if (!artists.length) { section.remove(); return; }
+      artists.forEach((artist, index) => {
+        const card = document.createElement("button"); card.type = "button"; card.className = "rabbit-hole__card";
+        const number = document.createElement("span"); number.className = "rabbit-hole__number"; number.textContent = String(index + 1).padStart(2, "0");
+        const copy = document.createElement("span"); const name = document.createElement("strong"); name.textContent = artist.name;
+        const relation = document.createElement("small"); relation.textContent = artist.relation ? "Conexão: " + artist.relation : "Conexão MusicBrainz";
+        copy.append(name, relation); const arrow = document.createElement("span"); arrow.textContent = "↗";
+        card.append(number, copy, arrow); card.addEventListener("click", () => go(artist.name)); grid.append(card);
+      });
+    } catch (_) { section.remove(); }
+  };
+  loadRabbitHole();
+
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); open(); }
     if (event.key === "Escape") close();
