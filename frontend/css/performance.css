@@ -47,3 +47,10 @@ html.is-typing .sound-orb {
     animation-duration: .35s;
   }
 }
+
+
+/* Dedicated artist view */
+body.artist-page-open #inicio{display:none}
+body.artist-page-open #result{padding-top:82px}
+body.artist-page-open .topbar{position:absolute}
+@media(max-width:700px){body.artist-page-open #result{padding-top:70px}}
