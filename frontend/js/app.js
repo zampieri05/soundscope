@@ -16,6 +16,16 @@ let requestInProgress = false;
 let spotifySession = null;
 let currentArtistName = "";
 
+function ensureArtistSkeleton() {
+  if (!elements.loading || elements.loading.querySelector(".artist-skeleton")) return;
+  const skeleton = document.createElement("div");
+  skeleton.className = "artist-skeleton";
+  skeleton.setAttribute("aria-hidden", "true");
+  skeleton.innerHTML = '<div class="artist-skeleton__hero"><i class="artist-skeleton__photo"></i><div class="artist-skeleton__intro"><i class="artist-skeleton__line artist-skeleton__line--kicker"></i><i class="artist-skeleton__line artist-skeleton__line--title"></i><i class="artist-skeleton__line artist-skeleton__line--meta"></i></div></div><div class="artist-skeleton__nav"></div><div class="artist-skeleton__body"><div><i class="artist-skeleton__line artist-skeleton__line--heading"></i><i class="artist-skeleton__line"></i><i class="artist-skeleton__line"></i><i class="artist-skeleton__line artist-skeleton__line--short"></i></div><div class="artist-skeleton__facts"><i></i><i></i><i></i></div></div><div class="artist-skeleton__albums"><i></i><i></i><i></i><i></i></div>';
+  elements.loading.append(skeleton);
+}
+ensureArtistSkeleton();
+
 function setState(state, message = "") {
   elements.loading.classList.toggle("is-hidden", state !== "loading");
   elements.error.classList.toggle("is-hidden", state !== "error");
