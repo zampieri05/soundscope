@@ -45,12 +45,14 @@
     <nav aria-label="Navegação principal"><a class="is-active" href="#inicio" aria-current="page">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a><a class="is-hidden" id="insights-nav" href="#meu-soundscope">Meu SoundScope</a></nav>
     <div class="topbar-actions">
       <button class="account-entry" id="account-entry" type="button" aria-haspopup="dialog"><span class="account-entry__guest">Entrar</span><span class="account-entry__user is-hidden"><b id="account-avatar">SS</b><span id="account-name">Minha conta</span></span></button>
-      <div class="music-connect" aria-label="Plataformas musicais">
-        <button class="provider-switcher" id="provider-switcher" type="button" aria-expanded="false" aria-controls="provider-panel"><span class="music-connect__label">Plataformas</span><span class="music-connect__chevron" aria-hidden="true">⌄</span></button>
-        <span class="music-connect__divider" aria-hidden="true"></span>
-        <button class="spotify-button" id="spotify-connect" type="button" aria-describedby="spotify-status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.58 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.28-1.75-8.74-.96a.62.62 0 1 1-.28-1.2c3.78-.87 7.03-.5 9.67 1.1.3.18.39.57.2.86Zm1.22-2.7a.77.77 0 0 1-1.06.26c-2.68-1.65-6.77-2.12-9.94-1.16a.77.77 0 1 1-.45-1.48c3.63-1.1 8.14-.57 11.2 1.31.37.23.48.7.25 1.06Zm.1-2.8C14.69 9 9.38 8.82 6.32 9.75a.93.93 0 1 1-.54-1.77c3.52-1.07 9.38-.86 13.07 1.33a.92.92 0 0 1-.94 1.6Z"/></svg><span>Conectar Spotify</span></button>
-        <button class="spotify-disconnect is-hidden" id="spotify-disconnect" type="button"><span aria-hidden="true">✓</span> Spotify conectado</button>
-      </div>
+      <button class="audio-hub" id="provider-switcher" type="button" aria-expanded="false" aria-controls="provider-panel">
+        <span class="audio-hub__icon" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="audio-hub__copy"><small>Ouvir com</small><strong>Conectar música</strong></span>
+        <span class="audio-hub__state" id="audio-hub-state" aria-hidden="true">3</span>
+        <span class="audio-hub__chevron" aria-hidden="true">⌄</span>
+      </button>
+      <button class="spotify-button is-hidden" id="spotify-connect" type="button" aria-describedby="spotify-status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.58 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.28-1.75-8.74-.96a.62.62 0 1 1-.28-1.2c3.78-.87 7.03-.5 9.67 1.1.3.18.39.57.2.86Zm1.22-2.7a.77.77 0 0 1-1.06.26c-2.68-1.65-6.77-2.12-9.94-1.16a.77.77 0 1 1-.45-1.48c3.63-1.1 8.14-.57 11.2 1.31.37.23.48.7.25 1.06Zm.1-2.8C14.69 9 9.38 8.82 6.32 9.75a.93.93 0 1 1-.54-1.77c3.52-1.07 9.38-.86 13.07 1.33a.92.92 0 0 1-.94 1.6Z"/></svg><span>Conectar Spotify</span></button>
+      <button class="spotify-disconnect is-hidden" id="spotify-disconnect" type="button"><span aria-hidden="true">✓</span> Spotify conectado</button>
       <button class="text-button" id="nav-search" type="button">Buscar <span aria-hidden="true">↗</span></button>
     </div>
     <p class="spotify-status" id="spotify-status" role="status" aria-live="polite"></p>
