@@ -24,17 +24,20 @@
 .rabbit-hole__number{color:var(--accent);font:500 10px Manrope,sans-serif}.rabbit-hole__card>span:nth-child(2){display:grid;gap:4px;min-width:0}.rabbit-hole__card strong{overflow:hidden;font:500 13px Manrope,sans-serif;text-overflow:ellipsis;white-space:nowrap}.rabbit-hole__card small{color:var(--muted);font-size:10px}
 @media(max-width:700px){.rabbit-hole__grid{grid-template-columns:1fr}.rabbit-hole{margin-top:48px}}
 
-/* SoundScope 2.2 · Artist Skeleton */
-.artist-route #loading-state.loading{width:100%;max-width:none;margin:0;padding:28px 0 64px;text-align:left}
+/* SoundScope 2.2 · Artist Skeleton V2 */
+.artist-route #loading-state.loading{position:relative;width:100%;max-width:none;margin:0;padding:22px 0 70px;text-align:left}
 .artist-route #loading-state>.signal-loader,.artist-route #loading-state>p,.artist-route #loading-state>span{display:none}
-.artist-skeleton{width:100%;display:grid;gap:28px}
-.artist-skeleton i,.artist-skeleton__nav,.artist-skeleton__facts i,.artist-skeleton__albums i{display:block;background:linear-gradient(100deg,rgba(255,255,255,.045) 20%,rgba(255,255,255,.105) 38%,rgba(255,255,255,.045) 56%);background-size:220% 100%;animation:soundscope-skeleton 1.55s ease-in-out infinite;border:1px solid rgba(255,255,255,.035)}
-.artist-skeleton__hero{display:grid;grid-template-columns:minmax(220px,34%) 1fr;gap:clamp(28px,6vw,84px);align-items:center;min-height:390px}
-.artist-skeleton__photo{width:100%;aspect-ratio:4/5;border-radius:24px}
-.artist-skeleton__intro{display:grid;gap:16px}.artist-skeleton__line{height:13px;border-radius:999px;width:92%}.artist-skeleton__line--kicker{width:120px;height:9px}.artist-skeleton__line--title{width:min(520px,85%);height:52px;border-radius:12px}.artist-skeleton__line--meta{width:260px}.artist-skeleton__line--heading{width:210px;height:30px;border-radius:10px;margin-bottom:18px}.artist-skeleton__line--short{width:64%}
-.artist-skeleton__nav{height:58px;border-radius:14px}.artist-skeleton__body{display:grid;grid-template-columns:1.5fr .8fr;gap:48px;padding-top:20px}.artist-skeleton__body>div:first-child{display:grid;gap:12px}
-.artist-skeleton__facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.artist-skeleton__facts i{height:92px;border-radius:16px}
-.artist-skeleton__albums{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.artist-skeleton__albums i{aspect-ratio:1;border-radius:18px}
-@keyframes soundscope-skeleton{0%{background-position:100% 0}100%{background-position:-120% 0}}
-@media(max-width:700px){.artist-route #loading-state.loading{padding-top:12px}.artist-skeleton{gap:18px}.artist-skeleton__hero{grid-template-columns:1fr;min-height:0}.artist-skeleton__photo{width:58%;max-width:230px}.artist-skeleton__line--title{height:38px}.artist-skeleton__body{grid-template-columns:1fr;gap:20px}.artist-skeleton__facts{grid-template-columns:repeat(3,1fr)}.artist-skeleton__albums{grid-template-columns:repeat(2,1fr)}}
-@media(prefers-reduced-motion:reduce){.artist-skeleton i,.artist-skeleton__nav,.artist-skeleton__facts i,.artist-skeleton__albums i{animation:none}}
+.artist-skeleton{position:relative;width:100%;display:grid;gap:30px;overflow:hidden}
+.artist-skeleton:before{content:"CARREGANDO PERFIL";position:absolute;z-index:3;top:14px;right:4px;padding:8px 11px;border:1px solid rgba(var(--accent-rgb),.28);border-radius:999px;background:rgba(7,14,24,.72);color:var(--accent);font:600 9px Manrope,sans-serif;letter-spacing:.14em;backdrop-filter:blur(8px)}
+.artist-skeleton i,.artist-skeleton__nav,.artist-skeleton__facts i,.artist-skeleton__albums i{display:block;position:relative;overflow:hidden;background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.075)}
+.artist-skeleton i:after,.artist-skeleton__nav:after,.artist-skeleton__facts i:after,.artist-skeleton__albums i:after{content:"";position:absolute;inset:0;transform:translateX(-105%);background:linear-gradient(90deg,transparent,rgba(var(--accent-rgb),.22),rgba(255,255,255,.13),transparent);animation:soundscope-skeleton-sweep 1.15s cubic-bezier(.4,0,.2,1) infinite}
+.artist-skeleton__hero{display:grid;grid-template-columns:minmax(250px,35%) 1fr;gap:clamp(30px,6vw,86px);align-items:center;min-height:410px;padding:22px;border:1px solid rgba(255,255,255,.055);border-radius:28px;background:linear-gradient(145deg,rgba(var(--accent-rgb),.055),rgba(255,255,255,.018))}
+.artist-skeleton__photo{width:100%;aspect-ratio:4/5;border-radius:22px}
+.artist-skeleton__intro{display:grid;gap:18px}.artist-skeleton__line{height:15px;border-radius:999px;width:92%}.artist-skeleton__line--kicker{width:138px;height:10px}.artist-skeleton__line--title{width:min(560px,88%);height:64px;border-radius:15px}.artist-skeleton__line--meta{width:300px;height:14px}.artist-skeleton__line--heading{width:230px;height:34px;border-radius:10px;margin-bottom:16px}.artist-skeleton__line--short{width:60%}
+.artist-skeleton__nav{height:62px;border-radius:15px}
+.artist-skeleton__body{display:grid;grid-template-columns:1.45fr .8fr;gap:50px;padding:8px 2px}.artist-skeleton__body>div:first-child{display:grid;align-content:start;gap:13px}
+.artist-skeleton__facts{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.artist-skeleton__facts i{height:105px;border-radius:17px}
+.artist-skeleton__albums{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.artist-skeleton__albums i{aspect-ratio:1;border-radius:19px}
+@keyframes soundscope-skeleton-sweep{0%{transform:translateX(-105%)}70%,100%{transform:translateX(105%)}}
+@media(max-width:700px){.artist-route #loading-state.loading{padding-top:10px}.artist-skeleton{gap:20px}.artist-skeleton:before{top:8px;right:8px}.artist-skeleton__hero{grid-template-columns:1fr;min-height:0;padding:16px}.artist-skeleton__photo{width:64%;max-width:250px}.artist-skeleton__line--title{height:44px}.artist-skeleton__body{grid-template-columns:1fr;gap:22px}.artist-skeleton__facts{grid-template-columns:repeat(3,1fr)}.artist-skeleton__albums{grid-template-columns:repeat(2,1fr)}}
+@media(prefers-reduced-motion:reduce){.artist-skeleton i:after,.artist-skeleton__nav:after,.artist-skeleton__facts i:after,.artist-skeleton__albums i:after{animation:none;transform:none;background:rgba(var(--accent-rgb),.09)}}
