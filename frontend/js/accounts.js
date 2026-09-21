@@ -11,8 +11,8 @@
     signup?.classList.toggle("is-hidden", name !== "signup");
     if (status) status.textContent = "";
   };
-  const open = () => { modal.classList.remove("is-hidden"); document.documentElement.style.overflow = "hidden"; setTimeout(() => modal.querySelector("input")?.focus(), 40); };
-  const close = () => { modal.classList.add("is-hidden"); document.documentElement.style.overflow = ""; entry.focus(); };
+  const open = () => { document.documentElement.classList.add("account-open"); modal.classList.remove("is-hidden"); document.documentElement.style.overflow = "hidden"; requestAnimationFrame(() => modal.querySelector("input")?.focus({ preventScroll: true })); };
+  const close = () => { modal.classList.add("is-hidden"); document.documentElement.classList.remove("account-open"); document.documentElement.style.overflow = ""; entry.focus({ preventScroll: true }); };
   entry.addEventListener("click", open);
   modal.querySelectorAll("[data-account-provider]").forEach((button) => button.addEventListener("click", () => { const provider = button.dataset.accountProvider; status.textContent = `${provider}: interface pronta. Vamos ativar o OAuth assim que o Cognito e as credenciais do provedor forem configurados.`; }));
   modal.querySelectorAll("[data-account-close]").forEach((el) => el.addEventListener("click", close));
