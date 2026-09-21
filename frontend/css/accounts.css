@@ -83,3 +83,28 @@ html.account-open .cursor-glow{display:none!important}
   .topbar>.scope-nav{display:none!important}
   .topbar-actions{justify-self:end}
 }
+
+
+/* Artist route · editorial command bar */
+@media(min-width:1051px){
+  body.artist-route .topbar{position:absolute;width:100%;max-width:none;height:92px;padding:0 clamp(34px,4vw,78px);grid-template-columns:auto minmax(360px,760px) 1fr;gap:34px;border-bottom:1px solid rgba(130,157,194,.16);background:linear-gradient(180deg,rgba(7,13,22,.98),rgba(7,13,22,.93));transform:translateX(-50%)}
+  body.artist-route .brand{font-size:19px}
+  body.artist-route .brand-mark{height:23px}
+  body.artist-route .topbar-actions{display:grid;grid-template-columns:minmax(360px,1fr) auto auto;align-items:center;justify-self:stretch;gap:16px}
+  body.artist-route .artist-header-search{grid-column:1;grid-row:1;height:52px;min-width:360px;display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:13px;padding:0 14px 0 18px;border:1px solid rgba(135,160,195,.25);border-radius:18px;background:rgba(19,29,43,.72);color:#8493a9;text-align:left;order:-1}
+  body.artist-route .artist-header-search:hover{border-color:rgba(91,151,255,.46);color:#b9c8da}
+  body.artist-route .artist-header-search svg{width:20px;fill:none;stroke:currentColor;stroke-width:1.6}
+  body.artist-route .artist-header-search span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  body.artist-route .artist-header-search kbd{padding:6px 8px;border:0;border-radius:7px;background:rgba(255,255,255,.045);color:#8493a9;font:600 9px "DM Sans",sans-serif}
+  body.artist-route .account-entry{grid-column:2;grid-row:1;height:48px;min-width:190px;padding:0 16px;border-radius:16px;background:rgba(14,22,34,.78)}
+  body.artist-route .audio-hub{grid-column:3;grid-row:1;height:52px;min-width:230px;border-color:rgba(58,126,255,.58);border-radius:18px;background:linear-gradient(135deg,rgba(27,60,126,.54),rgba(14,27,48,.9))}
+  body.artist-route .spotify-status{position:absolute;right:clamp(34px,4vw,78px);top:96px;margin:0;color:#8290a4;font-size:10px}
+  body.artist-route .provider-panel{top:82px;right:clamp(34px,4vw,78px)}
+}
+@media(min-width:1051px) and (max-width:1350px){
+  body.artist-route .topbar{grid-template-columns:auto 1fr;gap:24px}
+  body.artist-route .topbar-actions{grid-template-columns:minmax(280px,1fr) auto auto}
+  body.artist-route .artist-header-search{min-width:280px}
+  body.artist-route .account-entry{min-width:160px}
+  body.artist-route .audio-hub{min-width:200px}
+}
