@@ -16,3 +16,5 @@ html.account-open .cursor-glow{display:none!important}
 .account-card{contain:layout paint;transform:translateZ(0);will-change:auto}
 .account-entry{will-change:auto}
 @media(max-width:900px),(pointer:coarse){.account-modal__backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}.account-card{box-shadow:0 22px 60px rgba(0,0,0,.52)}}
+
+.account-confirm{margin:4px 0 12px;padding:16px;border:1px solid rgba(91,151,255,.24);border-radius:13px;background:rgba(91,151,255,.055)}.account-confirm.is-hidden{display:none}.account-confirm>p{margin:0 0 14px;color:#b9c9de;font-size:12px;line-height:1.5}
