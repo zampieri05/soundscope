@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b0f17"><title>Meu perfil · SoundScope</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/account-profile.css">
+<script src="js/accounts-config.js" defer></script><script src="js/account-profile.js" defer></script>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+</head><body class="profile-page">
+<header class="profile-topbar"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a><a class="profile-back" href="index.html">Voltar ao SoundScope <span>↗</span></a></header>
+<main class="profile-shell">
+<section class="profile-hero">
+<div class="profile-cover" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="profile-identity">
+<div class="profile-avatar-wrap"><div class="profile-avatar" id="profile-avatar">SS</div><button id="profile-photo-button" type="button" title="Escolher foto">+</button><input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
+<div class="profile-title"><p>SoundScope Account</p><h1 id="profile-name">Seu perfil</h1><span id="profile-handle">@soundscope</span></div>
+<button class="profile-edit" id="profile-edit" type="button">Editar perfil</button>
+</div></section>
+<section class="profile-grid">
+<article class="profile-card profile-card--about"><header><div><small>01 / Identidade</small><h2>Sobre você</h2></div><span class="profile-badge">SoundScope ID</span></header>
+<div class="profile-fields"><div><span>Nome</span><strong id="profile-field-name">—</strong></div><div><span>Username</span><strong id="profile-field-username">—</strong></div><div><span>E-mail</span><strong id="profile-email">—</strong></div><div><span>Conta</span><strong id="profile-provider">SoundScope</strong></div></div>
+</article>
+<article class="profile-card"><header><div><small>02 / Conexões</small><h2>Plataformas</h2></div></header>
+<div class="platform-row"><b class="platform-logo spotify">●</b><div><strong>Spotify</strong><span id="profile-spotify">Não conectado</span></div><a href="index.html">Gerenciar</a></div>
+<div class="platform-row"><b class="platform-logo">♪</b><div><strong>Apple Music</strong><span>Disponível em breve</span></div></div>
+<div class="platform-row"><b class="platform-logo">≋</b><div><strong>Deezer</strong><span>Disponível em breve</span></div></div>
+</article>
+<article class="profile-card profile-card--passport"><header><div><small>03 / Seu universo</small><h2>Music Passport</h2></div><span class="profile-badge profile-badge--soon">Em construção</span></header><p>Seu espaço para reunir descobertas, órbitas, artistas e momentos musicais em uma identidade única.</p><div class="passport-orbit" aria-hidden="true"><i></i><i></i><i></i><b>SS</b></div></article>
+<article class="profile-card"><header><div><small>04 / Conta</small><h2>Segurança</h2></div></header><p class="security-copy">Sua autenticação é protegida pelo SoundScope Account. Senhas não são armazenadas no navegador.</p><button class="profile-logout" id="profile-logout" type="button">Sair da conta <span>↗</span></button></article>
+</section></main>
+<div class="profile-modal is-hidden" id="profile-modal"><div class="profile-modal__backdrop" data-profile-close></div><form class="profile-editor" id="profile-form"><button type="button" class="profile-editor__close" data-profile-close>×</button><p>Editar perfil</p><h2>Sua identidade SoundScope.</h2><label>Nome<input id="profile-edit-name" maxlength="60"></label><label>Username<input id="profile-edit-username" maxlength="30" pattern="[A-Za-z0-9._-]+"></label><small>As alterações de perfil completas serão sincronizadas com a nuvem na próxima etapa. Por enquanto, esta tela prepara a experiência visual.</small><button type="submit">Salvar visualização</button></form></div>
+</body></html>
