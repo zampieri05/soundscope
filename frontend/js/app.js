@@ -229,7 +229,7 @@ elements.albumsLoadMore.addEventListener("click", loadMoreAlbums);
 elements.readMore.addEventListener("click", () => { const collapsed = elements.biographyWrap.classList.toggle("is-collapsed"); elements.readMore.setAttribute("aria-expanded", String(!collapsed)); elements.readMore.innerHTML = collapsed ? "Ler mais <span>↓</span>" : "Mostrar menos <span>↑</span>"; });
 elements.dataTrigger.addEventListener("click", () => toggleDataPanel()); elements.dataClose.addEventListener("click", () => toggleDataPanel(false)); elements.backdrop.addEventListener("click", () => toggleDataPanel(false));
 $("#nav-search").addEventListener("click", focusSearch); $("#new-search").addEventListener("click", focusSearch); $("#retry-search").addEventListener("click", focusSearch);
-document.addEventListener("keydown", (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); focusSearch(); } if (event.key === "Escape" && elements.dataPanel.classList.contains("is-open")) toggleDataPanel(false); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && elements.dataPanel.classList.contains("is-open")) toggleDataPanel(false); });
 if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-reduced-motion:reduce)").matches) {
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
