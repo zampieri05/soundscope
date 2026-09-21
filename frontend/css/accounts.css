@@ -75,3 +75,11 @@ html.account-open .cursor-glow{display:none!important}
   .scope-nav__index{color:#55769f;font-size:8px;font-weight:700;letter-spacing:.06em}
   .topbar .scope-nav a.is-active .scope-nav__index{color:#70a7ff}
 }
+
+
+/* Header balance after removing primary nav */
+@media(min-width:1051px){
+  .topbar{grid-template-columns:1fr auto}
+  .topbar>.scope-nav{display:none!important}
+  .topbar-actions{justify-self:end}
+}
