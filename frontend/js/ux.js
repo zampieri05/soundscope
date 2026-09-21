@@ -57,7 +57,7 @@
     searchTimer = setTimeout(async () => {
       searchController = new AbortController();
       try {
-        const url = "https://musicbrainz.org/ws/2/artist/?fmt=json&limit=6&query=" + encodeURIComponent("artist:" + value);
+        const url = "https://cj2v75mr48.execute-api.us-east-1.amazonaws.com/artist/" + encodeURIComponent(value) + "?suggest=1";
         const response = await fetch(url, { signal: searchController.signal, headers: { Accept: "application/json" } });
         if (!response.ok) throw new Error("SEARCH_FAILED");
         const data = await response.json();
