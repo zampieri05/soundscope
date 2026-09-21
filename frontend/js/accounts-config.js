@@ -3,6 +3,6 @@ window.SoundScopeAccountsConfig = Object.freeze({
   userPoolId: "us-east-1_xXS3ZbBIZ",
   clientId: "khsrn7u8qjge2l9rt5srdfgiu",
   domain: "soundscope-15837-6080",
-  redirectUri: "https://d3pzcehppsvhm0.cloudfront.net/preview-v2/index.html",
-  logoutUri: "https://d3pzcehppsvhm0.cloudfront.net/preview-v2/index.html"
+  redirectUri: "https://d3pzcehppsvhm0.cloudfront.net/",
+  logoutUri: "https://d3pzcehppsvhm0.cloudfront.net/"
 });
