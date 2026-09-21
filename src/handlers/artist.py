@@ -111,6 +111,83 @@ def _cover_response(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_related_request(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+    params = event.get("queryStringParameters")
+    return isinstance(params, dict) and params.get("related") == "1"
+
+
+def _related_response(artist_name: str) -> dict[str, Any]:
+    """Return documented artist-to-artist MusicBrainz relationships."""
+    from src.services.musicbrainz.client import search_artist, get_artist_details
+    try:
+        search = search_artist(artist_name)
+        matches = search.get("artists", [])
+        if not matches:
+            return _response(200, {"artists": []})
+        details = get_artist_details(matches[0]["id"])
+    except (MusicBrainzArtistNotFoundError, KeyError, TypeError):
+        return _response(200, {"artists": []})
+    except MusicBrainzError:
+        return _response(502, {"error": "upstream service unavailable"})
+
+    related = []
+    seen = set()
+    for relation in details.get("relations", []):
+        target = relation.get("artist") if isinstance(relation, dict) else None
+        if not isinstance(target, dict):
+            continue
+        name = target.get("name")
+        mbid = target.get("id")
+        if not isinstance(name, str) or not name.strip() or name.casefold() == artist_name.casefold():
+            continue
+        key = mbid or name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        related.append({
+            "name": name.strip(),
+            "id": mbid,
+            "relation": relation.get("type"),
+            "direction": relation.get("direction"),
+            "disambiguation": target.get("disambiguation"),
+        })
+        if len(related) >= 8:
+            break
+    return _response(200, {"artists": related, "source": "musicbrainz"})
+
+
+def _is_suggestion_request(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+    params = event.get("queryStringParameters")
+    return isinstance(params, dict) and params.get("suggest") == "1"
+
+
+def _suggestion_response(artist_name: str) -> dict[str, Any]:
+    """Return lightweight MusicBrainz artist matches through our own API."""
+    from src.services.musicbrainz.client import search_artist
+    try:
+        data = search_artist(artist_name)
+    except MusicBrainzArtistNotFoundError:
+        return _response(200, {"artists": []})
+    except MusicBrainzError:
+        return _response(502, {"error": "upstream service unavailable"})
+    artists = []
+    for item in data.get("artists", [])[:6]:
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        artists.append({
+            "name": name.strip(),
+            "type": item.get("type"),
+            "country": item.get("country"),
+            "disambiguation": item.get("disambiguation"),
+        })
+    return _response(200, {"artists": artists})
+
+
 def _run_pipeline_and_publish_index(
     artist_name: str,
 ) -> tuple[EnrichedArtistProcessingResult, bool]:
@@ -131,6 +208,12 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Run the enriched-artist pipeline for an API Gateway path parameter."""
     if _is_cover_request(event):
         return _cover_response(event)
+    path_parameters = event.get("pathParameters") if isinstance(event, dict) else None
+    requested_artist = path_parameters.get("artist_name") if isinstance(path_parameters, dict) else None
+    if _is_suggestion_request(event) and isinstance(requested_artist, str) and requested_artist.strip():
+        return _suggestion_response(requested_artist.strip())
+    if _is_related_request(event) and isinstance(requested_artist, str) and requested_artist.strip():
+        return _related_response(requested_artist.strip())
     global _cold_start
     cold_start, _cold_start = _cold_start, False
     metrics = InvocationMetrics()

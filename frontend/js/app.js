@@ -16,6 +16,16 @@ let requestInProgress = false;
 let spotifySession = null;
 let currentArtistName = "";
 
+function ensureArtistSkeleton() {
+  if (!elements.loading || elements.loading.querySelector(".artist-skeleton")) return;
+  const skeleton = document.createElement("div");
+  skeleton.className = "artist-skeleton";
+  skeleton.setAttribute("aria-hidden", "true");
+  skeleton.innerHTML = '<div class="artist-skeleton__ambient"></div><div class="artist-skeleton__status"><span></span>Sintonizando artista</div><div class="artist-skeleton__hero"><div class="artist-skeleton__photo-wrap"><i class="artist-skeleton__photo"></i><b>SS / LOADING</b></div><div class="artist-skeleton__intro"><em>PERFIL DO ARTISTA</em><i class="artist-skeleton__line artist-skeleton__line--title"></i><i class="artist-skeleton__line artist-skeleton__line--meta"></i><div class="artist-skeleton__chips"><i></i><i></i><i></i></div></div></div><div class="artist-skeleton__nav"><i></i><i></i><i></i><i></i></div><div class="artist-skeleton__body"><div><em>A HISTÓRIA</em><i class="artist-skeleton__line artist-skeleton__line--heading"></i><i class="artist-skeleton__line"></i><i class="artist-skeleton__line"></i><i class="artist-skeleton__line artist-skeleton__line--short"></i></div><div class="artist-skeleton__facts"><i></i><i></i><i></i></div></div><div class="artist-skeleton__disc-title"><em>DISCOGRAFIA</em><i></i></div><div class="artist-skeleton__albums"><i></i><i></i><i></i><i></i></div>';
+  elements.loading.append(skeleton);
+}
+ensureArtistSkeleton();
+
 function setState(state, message = "") {
   elements.loading.classList.toggle("is-hidden", state !== "loading");
   elements.error.classList.toggle("is-hidden", state !== "error");
@@ -229,7 +239,7 @@ elements.albumsLoadMore.addEventListener("click", loadMoreAlbums);
 elements.readMore.addEventListener("click", () => { const collapsed = elements.biographyWrap.classList.toggle("is-collapsed"); elements.readMore.setAttribute("aria-expanded", String(!collapsed)); elements.readMore.innerHTML = collapsed ? "Ler mais <span>↓</span>" : "Mostrar menos <span>↑</span>"; });
 elements.dataTrigger.addEventListener("click", () => toggleDataPanel()); elements.dataClose.addEventListener("click", () => toggleDataPanel(false)); elements.backdrop.addEventListener("click", () => toggleDataPanel(false));
 $("#nav-search").addEventListener("click", focusSearch); $("#new-search").addEventListener("click", focusSearch); $("#retry-search").addEventListener("click", focusSearch);
-document.addEventListener("keydown", (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); focusSearch(); } if (event.key === "Escape" && elements.dataPanel.classList.contains("is-open")) toggleDataPanel(false); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && elements.dataPanel.classList.contains("is-open")) toggleDataPanel(false); });
 if (window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(prefers-reduced-motion:reduce)").matches) {
   elements.home.addEventListener("pointermove", (event) => { const x = (event.clientX / window.innerWidth - .5) * 18; const y = (event.clientY / window.innerHeight - .5) * 14; elements.orb.style.setProperty("--orb-x", `${x}px`); elements.orb.style.setProperty("--orb-y", `${y}px`); });
 }
