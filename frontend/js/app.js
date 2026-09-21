@@ -427,7 +427,7 @@ async function initializeSpotify() {
   spotifySession = session;
   if (session && spotify.isExpired(session)) { spotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("expired"); session = null; } else if (session) renderSpotify("connected", session);
   const callback = spotify.parseCallback(window.location.search);
-  if (callback.code || callback.error || callback.state) { renderSpotify("processing"); try { session = await spotify.handleCallback(); spotifySession = session; renderSpotify("connected", session); } catch (_) { spotifySession = null; renderSpotify("error"); } }
+  if ((callback.code || callback.error || callback.state) && sessionStorage.getItem(spotify.KEYS.state)) { renderSpotify("processing"); try { const handled = await spotify.handleCallback(); if (handled) { session = handled; spotifySession = session; renderSpotify("connected", session); } } catch (_) { spotifySession = null; renderSpotify("error"); } }
   spotifyElements.connect.addEventListener("click", async () => { renderSpotify("redirecting"); try { await spotify.begin(); } catch (_) { renderSpotify("error"); } });
   spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("disconnected"); document.querySelectorAll(".album__spotify").forEach((node) => { node.textContent = ""; delete node.parentElement.dataset.spotifyState; }); });
 }
