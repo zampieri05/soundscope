@@ -178,7 +178,8 @@ def _identity_rejected(reason: str, tadb: NormalizedArtist,
 def _same_identity(tadb: NormalizedArtist, mb: NormalizedArtist,
                    search_match: dict[str, Any], details: dict[str, Any]) -> bool:
     names = _candidate_names(search_match) | _candidate_names(details)
-    if _comparable_name(tadb.name) not in names:
+    if (_comparable_name(tadb.name) not in names
+            and not any(names_compatible(tadb.name, name) for name in names)):
         return _identity_rejected("name_mismatch", tadb, mb, search_match.get("score"))
 
     score = search_match.get("score")
