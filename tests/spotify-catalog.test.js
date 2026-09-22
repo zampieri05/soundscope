@@ -122,21 +122,12 @@ test("resolve catálogo completo do artista via Spotify sem armazenar token", as
 });
 
 
-test("resolve homônimo quando um candidato exato tem liderança material de audiência", () => {
+test("resolve homônimo pela relevância do Spotify quando há vários nomes exatos", () => {
   const result = catalog.matchArtist("Morada", [
-    { name: "Morada", spotifyId: "br", followers: 300000, popularity: 60 },
-    { name: "Morada", spotifyId: "other", followers: 5000, popularity: 25 }
+    { name: "MORADA", spotifyId: "br" },
+    { name: "Morada", spotifyId: "other" }
   ]);
   assert.equal(result.matched, true);
   assert.equal(result.artist.spotifyId, "br");
-  assert.equal(result.reason, "exact_name_audience_lead");
-});
-
-test("rejeita homônimos sem evidência suficiente", () => {
-  const result = catalog.matchArtist("Morada", [
-    { name: "Morada", spotifyId: "a", followers: 10000, popularity: 40 },
-    { name: "Morada", spotifyId: "b", followers: 9000, popularity: 39 }
-  ]);
-  assert.equal(result.matched, false);
-  assert.equal(result.confidence, "ambiguous");
+  assert.equal(result.reason, "exact_name_spotify_relevance");
 });
