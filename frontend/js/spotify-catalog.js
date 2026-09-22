@@ -109,7 +109,10 @@
     return {
       name: artist?.name || "",
       spotifyId: artist?.id || "",
-      spotifyUrl: artist?.external_urls?.spotify || ""
+      spotifyUrl: artist?.external_urls?.spotify || "",
+      followers: Number(artist?.followers?.total) || 0,
+      popularity: Number(artist?.popularity) || 0,
+      genres: Array.isArray(artist?.genres) ? artist.genres : []
     };
   }
 
@@ -118,15 +121,28 @@
     const exact = (candidates || []).filter((item) =>
       item?.spotifyId && normalize(item.name) === wanted
     );
-    if (exact.length !== 1) {
-      return {
-        matched: false,
-        confidence: exact.length > 1 ? "ambiguous" : "none",
-        reason: exact.length > 1 ? "ambiguous_results" : "no_exact_match",
-        artist: null
-      };
+    if (!exact.length) {
+      return { matched: false, confidence: "none", reason: "no_exact_match", artist: null };
     }
-    return { matched: true, confidence: "high", reason: "exact_artist_name", artist: exact[0] };
+    if (exact.length === 1) {
+      return { matched: true, confidence: "high", reason: "exact_artist_name", artist: exact[0] };
+    }
+    // Spotify Search is relevance-ranked. For homonyms, accept the first exact-name
+    // candidate only when it has materially stronger audience evidence than #2.
+    // This avoids arbitrary ties while still resolving established artists.
+    const ranked = [...exact].sort((a, b) =>
+      (Number(b.followers) || 0) - (Number(a.followers) || 0) ||
+      (Number(b.popularity) || 0) - (Number(a.popularity) || 0)
+    );
+    const first = ranked[0], second = ranked[1];
+    const firstFollowers = Number(first.followers) || 0;
+    const secondFollowers = Number(second.followers) || 0;
+    const followerLead = firstFollowers >= 1000 && firstFollowers >= Math.max(1, secondFollowers) * 3;
+    const popularityLead = (Number(first.popularity) || 0) >= (Number(second.popularity) || 0) + 20;
+    if (followerLead || popularityLead) {
+      return { matched: true, confidence: "medium", reason: "exact_name_audience_lead", artist: first };
+    }
+    return { matched: false, confidence: "ambiguous", reason: "ambiguous_results", artist: null };
   }
 
   async function spotifyJson(url, accessToken, fetchApi, signal) {
