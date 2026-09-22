@@ -219,6 +219,11 @@ async function hydrateSpotifyCatalog(artist, payload) {
       status("Spotify confirmou o artista, mas não retornou lançamentos.", "error"); return;
     }
     artist.albums = resolved.albums;
+    if ((!artist.image_url || elements.image.src.includes("artist-placeholder")) && resolved.artist?.imageUrl) {
+      artist.image_url = resolved.artist.imageUrl;
+      elements.image.src = resolved.artist.imageUrl;
+      elements.image.alt = `Foto de ${artist.name}`;
+    }
     artist.source_ids = { ...(artist.source_ids || {}), spotify: resolved.artist.spotifyId };
     const sources = { ...(payload.metadata?.sources || {}) };
     sources.spotify = true;
