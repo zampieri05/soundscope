@@ -14,6 +14,7 @@ const elements = {
 };
 let requestInProgress = false;
 let spotifySession = null;
+let spotifyReady = Promise.resolve();
 let currentArtistName = "";
 
 function ensureArtistSkeleton() {
@@ -259,6 +260,7 @@ async function searchArtist(artistName) {
   elements.loading.scrollIntoView({ behavior: "smooth", block: "start" });
   const controller = new AbortController(); const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    await spotifyReady;
     const response = await fetch(`${API_BASE_URL}/artist/${encodeURIComponent(artistName)}`, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (response.status === 404) throw new Error("NOT_FOUND");
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
@@ -485,4 +487,4 @@ async function initializeSpotify() {
   spotifyElements.connect.addEventListener("click", async () => { renderSpotify("redirecting"); try { await spotify.begin(); } catch (_) { renderSpotify("error"); } });
   spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("disconnected"); document.querySelectorAll(".album__spotify").forEach((node) => { node.textContent = ""; delete node.parentElement.dataset.spotifyState; }); });
 }
-initializeSpotify();
+spotifyReady = initializeSpotify();
