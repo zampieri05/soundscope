@@ -71,3 +71,63 @@ test("seleciona o melhor candidato entre resultados válidos", () => {
   const exactYear = album({ spotifyId: "exact", spotifyUrl: "https://open.spotify.com/album/exact" });
   assert.equal(catalog.matchAlbum(input, [nearYear, exactYear]).album.spotifyId, "exact");
 });
+
+
+test("resolver de artista exige correspondência exata e única", () => {
+  const result = catalog.matchArtist("Fhop Music", [
+    { name: "FHOP", spotifyId: "sparse" },
+    { name: "Fhop Music", spotifyId: "canonical" }
+  ]);
+  assert.equal(result.matched, true);
+  assert.equal(result.artist.spotifyId, "canonical");
+});
+
+test("normaliza releases do Spotify para a discografia SoundScope", () => {
+  const item = catalog.catalogAlbumFromApi({
+    id: "release-1",
+    name: "A Boa Parte (Ao Vivo)",
+    release_date: "2024-05-10",
+    album_type: "album",
+    images: [{ url: "https://example.test/cover.jpg" }],
+    external_urls: { spotify: "https://open.spotify.com/album/release-1" }
+  });
+  assert.equal(item.title, "A Boa Parte (Ao Vivo)");
+  assert.equal(item.year, "2024");
+  assert.equal(item.primary_type, "Album");
+  assert.equal(item.album_id, "spotify:release-1");
+  assert.equal(item.cover_url, "https://example.test/cover.jpg");
+});
+
+test("resolve catálogo completo do artista via Spotify sem armazenar token", async () => {
+  const values = new Map();
+  const storage = { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
+  const fetchApi = async (url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer catalog-token");
+    if (url.includes("/v1/search?")) {
+      return { ok: true, status: 200, json: async () => ({ artists: { items: [
+        { id: "0V208yTQ5OGOUBZuszu6Fn", name: "Fhop Music", external_urls: { spotify: "https://open.spotify.com/artist/0V208yTQ5OGOUBZuszu6Fn" } }
+      ] } }) };
+    }
+    assert.match(url, /\/v1\/artists\/0V208yTQ5OGOUBZuszu6Fn\/albums\?/);
+    return { ok: true, status: 200, json: async () => ({
+      items: [{ id: "r1", name: "De Volta", release_date: "2025-01-01", album_type: "album", images: [], external_urls: { spotify: "https://open.spotify.com/album/r1" } }],
+      next: null
+    }) };
+  };
+  const result = await catalog.resolveArtistCatalog("Fhop Music", "catalog-token", { storage, fetchApi });
+  assert.equal(result.matched, true);
+  assert.equal(result.albums.length, 1);
+  assert.equal(result.albums[0].title, "De Volta");
+  assert.doesNotMatch(values.get(catalog.ARTIST_CATALOG_CACHE_KEY), /catalog-token/);
+});
+
+
+test("resolve homônimo pela relevância do Spotify quando há vários nomes exatos", () => {
+  const result = catalog.matchArtist("Morada", [
+    { name: "MORADA", spotifyId: "br" },
+    { name: "Morada", spotifyId: "other" }
+  ]);
+  assert.equal(result.matched, true);
+  assert.equal(result.artist.spotifyId, "br");
+  assert.equal(result.reason, "exact_name_spotify_relevance");
+});

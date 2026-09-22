@@ -7,6 +7,7 @@
 
   const SEARCH_URL = "https://api.spotify.com/v1/search";
   const CACHE_KEY = "soundscope_spotify_album_matches_v1";
+  const ARTIST_CATALOG_CACHE_KEY = "soundscope_spotify_artist_catalog_v1";
   const REQUEST_TIMEOUT_MS = 8000;
   const EDITION_WORDS = "deluxe|remaster(?:ed)?|anniversary|expanded|special|bonus|collector(?:'s)?|legacy|super deluxe";
   const pending = new Map();
@@ -104,6 +105,134 @@
     } finally { clearTimeout(timer); }
   }
 
+  function artistCandidateFromApi(artist) {
+    return {
+      name: artist?.name || "",
+      spotifyId: artist?.id || "",
+      spotifyUrl: artist?.external_urls?.spotify || "",
+      followers: Number(artist?.followers?.total) || 0,
+      popularity: Number(artist?.popularity) || 0,
+      genres: Array.isArray(artist?.genres) ? artist.genres : [],
+      imageUrl: artist?.images?.[0]?.url || ""
+    };
+  }
+
+  function matchArtist(artistName, candidates) {
+    const wanted = normalize(artistName);
+    const exact = (candidates || []).filter((item) =>
+      item?.spotifyId && normalize(item.name) === wanted
+    );
+    if (!exact.length) {
+      return { matched: false, confidence: "none", reason: "no_exact_match", artist: null };
+    }
+    if (exact.length === 1) {
+      return { matched: true, confidence: "high", reason: "exact_artist_name", artist: exact[0] };
+    }
+    // Spotify's current Search response may omit followers/popularity/genres.
+    // Preserve API relevance order and accept the first exact-name result.
+    // We still refuse non-exact names, so this never falls back to fuzzy identity.
+    return {
+      matched: true,
+      confidence: "medium",
+      reason: "exact_name_spotify_relevance",
+      artist: exact[0]
+    };
+  }
+
+  async function spotifyJson(url, accessToken, fetchApi, signal) {
+    const response = await fetchApi(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal
+    });
+    if (response.status === 401) throw new Error("SESSION_EXPIRED");
+    if (response.status === 429) {
+      const error = new Error("RATE_LIMITED");
+      error.retryAfter = response.headers?.get?.("Retry-After") || null;
+      throw error;
+    }
+    if (!response.ok) throw new Error("SPOTIFY_NETWORK_ERROR");
+    try { return await response.json(); } catch (_) { throw new Error("SPOTIFY_NETWORK_ERROR"); }
+  }
+
+  async function searchArtists(artistName, accessToken, options = {}) {
+    if (!accessToken) throw new Error("SPOTIFY_DISCONNECTED");
+    const fetchApi = options.fetchApi || fetch;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs || REQUEST_TIMEOUT_MS);
+    const url = new URL(SEARCH_URL);
+    url.search = new URLSearchParams({ q: `artist:${artistName}`, type: "artist", limit: "10" });
+    try {
+      const data = await spotifyJson(url.toString(), accessToken, fetchApi, controller.signal);
+      return (data?.artists?.items || []).filter(Boolean).map(artistCandidateFromApi);
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("SPOTIFY_TIMEOUT");
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+
+  function catalogAlbumFromApi(album) {
+    const kind = normalize(album?.album_type);
+    return {
+      title: album?.name || "Título não informado",
+      year: releaseYear(album?.release_date) ? String(releaseYear(album.release_date)) : null,
+      album_id: album?.id ? `spotify:${album.id}` : null,
+      musicbrainz_release_group_id: null,
+      cover_url: album?.images?.[0]?.url || null,
+      primary_type: kind === "single" ? "Single" : kind === "compilation" ? "Album" : "Album",
+      secondary_types: kind === "compilation" ? ["Compilation"] : [],
+      first_release_date: album?.release_date || null,
+      spotify_url: album?.external_urls?.spotify || null
+    };
+  }
+
+  async function fetchArtistCatalog(spotifyArtistId, accessToken, options = {}) {
+    if (!accessToken) throw new Error("SPOTIFY_DISCONNECTED");
+    if (!spotifyArtistId) throw new Error("SPOTIFY_ARTIST_REQUIRED");
+    const fetchApi = options.fetchApi || fetch;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs || REQUEST_TIMEOUT_MS);
+    const releases = [];
+    let next = `https://api.spotify.com/v1/artists/${encodeURIComponent(spotifyArtistId)}/albums?` +
+      new URLSearchParams({ include_groups: "album,single,compilation", limit: "10" });
+    try {
+      while (next) {
+        const data = await spotifyJson(next, accessToken, fetchApi, controller.signal);
+        releases.push(...(data?.items || []).filter(Boolean));
+        next = data?.next || null;
+      }
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("SPOTIFY_TIMEOUT");
+      throw error;
+    } finally { clearTimeout(timer); }
+    const seen = new Set();
+    return releases.map(catalogAlbumFromApi).filter((album) => {
+      if (!album.album_id || seen.has(album.album_id)) return false;
+      seen.add(album.album_id); return true;
+    });
+  }
+
+  async function resolveArtistCatalog(artistName, accessToken, options = {}) {
+    const storage = options.storage === undefined ? (typeof sessionStorage === "undefined" ? null : sessionStorage) : options.storage;
+    const cacheKey = normalize(artistName);
+    try {
+      const cache = JSON.parse(storage?.getItem(ARTIST_CATALOG_CACHE_KEY) || "{}");
+      if (cache[cacheKey]) return { ...cache[cacheKey], cached: true };
+    } catch (_) { /* cache miss */ }
+    const candidates = await searchArtists(artistName, accessToken, options);
+    const match = matchArtist(artistName, candidates);
+    if (!match.matched) return { ...match, albums: [], cached: false };
+    const albums = await fetchArtistCatalog(match.artist.spotifyId, accessToken, options);
+    const result = { ...match, albums, cached: false };
+    if (storage) {
+      try {
+        const cache = JSON.parse(storage.getItem(ARTIST_CATALOG_CACHE_KEY) || "{}");
+        cache[cacheKey] = { ...result, cached: false };
+        storage.setItem(ARTIST_CATALOG_CACHE_KEY, JSON.stringify(cache));
+      } catch (_) { /* cache failure must not affect catalog */ }
+    }
+    return result;
+  }
+
   async function lookupAlbum(input, accessToken, options = {}) {
     const storage = options.storage === undefined ? (typeof sessionStorage === "undefined" ? null : sessionStorage) : options.storage;
     const key = cacheId(input); const cached = readCache(storage, key);
@@ -115,5 +244,5 @@
     pending.set(key, request); return request;
   }
 
-  return { SEARCH_URL, CACHE_KEY, normalize, titleParts, candidateFromApi, scoreCandidate, matchAlbum, cacheId, lookupAlbum, searchAlbums };
+  return { SEARCH_URL, CACHE_KEY, ARTIST_CATALOG_CACHE_KEY, normalize, titleParts, candidateFromApi, scoreCandidate, matchAlbum, cacheId, lookupAlbum, searchAlbums, artistCandidateFromApi, matchArtist, searchArtists, catalogAlbumFromApi, fetchArtistCatalog, resolveArtistCatalog };
 });

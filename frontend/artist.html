@@ -9,14 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=36a0a85">
   <link rel="stylesheet" href="css/motion.css">
   <link rel="stylesheet" href="css/performance.css">
   <link rel="stylesheet" href="css/providers.css">
   <link rel="stylesheet" href="css/ux.css">
   <link rel="stylesheet" href="css/accounts.css">
-  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" defer></script>
-  <script src="js/apple-music.js" defer></script>
+  <link rel="stylesheet" href="css/artist-profile.css?v=5">
   <script src="js/spotify-auth.js" defer></script>
   <script src="js/spotify-catalog.js" defer></script>
   <script src="js/spotify-insights.js" defer></script>
@@ -42,7 +41,7 @@
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
   <header class="topbar">
     <a class="brand" href="index.html" aria-label="SoundScope, início"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>SoundScope</a>
-    <nav class="scope-nav is-hidden" aria-label="Navegação principal"><a class="is-active" href="#inicio" aria-current="page">Descobrir</a><a class="nav-collection" href="#discografia">Discografia</a><a class="is-hidden" id="insights-nav" href="#meu-soundscope">Meu SoundScope</a></nav>
+    <nav class="scope-nav" aria-label="Navegação principal"><a href="index.html">Início</a><a href="#discografia">Explorar</a><a class="is-active" href="#visao-geral" aria-current="page">Descobrir</a><a class="is-hidden" id="insights-nav" href="#meu-soundscope">Meu SoundScope</a></nav>
     <div class="topbar-actions">
       <button class="account-entry" id="account-entry" type="button" aria-haspopup="dialog"><span class="account-entry__guest">Entrar</span><span class="account-entry__user is-hidden"><b id="account-avatar">SS</b><span id="account-name">Minha conta</span></span></button>
       <button class="audio-hub" id="provider-switcher" type="button" aria-expanded="false" aria-controls="provider-panel">
@@ -60,8 +59,6 @@
       <header><div><small>SoundScope 2.1</small><strong>Suas plataformas</strong></div><button id="provider-close" type="button" aria-label="Fechar">×</button></header>
       <p>Conecte apenas os serviços que você usa. Cada dado mantém sua plataforma de origem.</p>
       <div class="provider-card provider-card--spotify"><span class="provider-icon">●</span><div><strong>Spotify</strong><small id="provider-spotify-state">Disponível</small></div><button id="provider-spotify-action" type="button">Conectar</button></div>
-      <div class="provider-card provider-card--apple"><span class="provider-icon">♪</span><div><strong>Apple Music</strong><small id="provider-apple-state">Preparando integração</small></div><button id="apple-music-connect" type="button">Conectar</button></div>
-      <div class="provider-card provider-card--deezer"><span class="provider-icon">≋</span><div><strong>Deezer</strong><small>Próxima etapa</small></div><button type="button" disabled>Em breve</button></div>
       <p class="provider-message" id="provider-message" role="status" aria-live="polite"></p>
     </aside>
   </header>
@@ -76,7 +73,7 @@
       <div class="account-tabs" role="tablist"><button class="is-active" type="button" data-account-tab="login">Entrar</button><button type="button" data-account-tab="signup">Criar conta</button></div>
       <form class="account-form" id="account-login-form"><label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="voce@email.com"></label><label>Senha<input type="password" name="password" autocomplete="current-password" required minlength="8" placeholder="••••••••"></label><button class="account-primary" type="submit">Entrar no SoundScope <span>→</span></button><button class="account-forgot" id="account-forgot" type="button">Esqueci minha senha</button></form>
       <form class="account-form is-hidden" id="account-signup-form"><label>Nome<input type="text" name="name" autocomplete="name" required maxlength="60" placeholder="Como vamos chamar você?"></label><label>Username<input type="text" name="username" autocomplete="username" required maxlength="30" pattern="[A-Za-z0-9._-]+" placeholder="@seuusername"></label><label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="voce@email.com"></label><label>Senha<input type="password" name="password" autocomplete="new-password" required minlength="8" placeholder="Mínimo de 8 caracteres"></label><button class="account-primary" type="submit">Criar minha conta <span>→</span></button></form>
-      <div class="account-divider account-divider--providers"><span>ou continue com</span></div><div class="account-social"><button type="button" data-account-provider="Google"><span class="account-provider-icon account-provider-icon--google" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Continuar com Google</span></button><button type="button" data-account-provider="Microsoft"><span class="account-provider-icon account-provider-icon--microsoft" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Continuar com Microsoft</span></button></div><section class="account-recovery is-hidden" id="account-recovery"><p>Recupere o acesso à sua conta SoundScope.</p><form class="account-form" id="account-recovery-form"><label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="voce@email.com"></label><button class="account-primary" type="submit">Enviar código <span>→</span></button></form></section><section class="account-reset is-hidden" id="account-reset"><p>Digite o código recebido e escolha uma nova senha.</p><form class="account-form" id="account-reset-form"><label>Código<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="8"></label><label>Nova senha<input type="password" name="password" autocomplete="new-password" required minlength="8"></label><button class="account-primary" type="submit">Definir nova senha <span>→</span></button></form></section><section class="account-confirm is-hidden" id="account-confirm"><p>Enviamos um código para o seu e-mail.</p><form class="account-form" id="account-confirm-form"><label>Código de confirmação<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="8" placeholder="Digite o código"></label><button class="account-primary" type="submit">Confirmar minha conta <span>→</span></button></form></section><p class="account-status" id="account-status" role="status" aria-live="polite"></p>
+      <div class="account-divider account-divider--providers"><span>ou continue com</span></div><div class="account-social"><button type="button" data-account-provider="Google"><span class="account-provider-icon account-provider-icon--google" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Continuar com Google</span></button></div><section class="account-recovery is-hidden" id="account-recovery"><p>Recupere o acesso à sua conta SoundScope.</p><form class="account-form" id="account-recovery-form"><label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="voce@email.com"></label><button class="account-primary" type="submit">Enviar código <span>→</span></button></form></section><section class="account-reset is-hidden" id="account-reset"><p>Digite o código recebido e escolha uma nova senha.</p><form class="account-form" id="account-reset-form"><label>Código<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="8"></label><label>Nova senha<input type="password" name="password" autocomplete="new-password" required minlength="8"></label><button class="account-primary" type="submit">Definir nova senha <span>→</span></button></form></section><section class="account-confirm is-hidden" id="account-confirm"><p>Enviamos um código para o seu e-mail.</p><form class="account-form" id="account-confirm-form"><label>Código de confirmação<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="8" placeholder="Digite o código"></label><button class="account-primary" type="submit">Confirmar minha conta <span>→</span></button></form></section><p class="account-status" id="account-status" role="status" aria-live="polite"></p>
       <footer>SoundScope Account · identidade independente das suas plataformas musicais</footer>
     </div>
   </section>
@@ -118,48 +115,65 @@
     </section>
 
     <article class="artist is-hidden" id="result" aria-labelledby="artist-name" tabindex="-1">
-      <header class="artist-hero">
-        <div class="artist-photo"><img id="artist-image" alt="" src="assets/artist-placeholder.svg"><div></div></div>
-        <div class="artist-intro">
-          <p class="kicker"><span></span> Perfil do artista</p><h2 id="artist-name"></h2>
-          <p class="artist-meta" id="artist-meta"></p><p class="artist-formed" id="artist-formed"></p>
+      <header class="profile-hero">
+        <div class="profile-hero__image"><img id="artist-image" alt="" src="assets/artist-placeholder.svg"></div>
+        <div class="profile-hero__content">
+          <span class="profile-badge">ARTISTA</span>
+          <h2 id="artist-name"></h2>
+          <p class="artist-meta" id="artist-meta"></p>
+          <p class="artist-formed" id="artist-formed"></p>
+          <div class="profile-actions">
+            <button id="story-mode-open" type="button" aria-expanded="false" aria-controls="story-mode"><span>▶</span> Explorar história</button>
+            <button id="new-search" type="button">Nova busca <span>⌕</span></button>
+          </div>
         </div>
-        <span class="vertical-note" aria-hidden="true">SOUNDSCOPE / ARQUIVO</span>
+        <div class="profile-hero__texture" aria-hidden="true"><span class="profile-hero__eyebrow">SOUNDSCOPE</span><strong>Explore.<br>Escute.<br>Descubra.</strong></div>
       </header>
 
       <nav class="artist-nav" aria-label="Seções do artista">
-        <a href="#visao-geral" class="is-active">Visão geral</a><a href="#historia">A história</a><a href="#integrantes" id="members-nav">Integrantes</a><a href="#discografia" id="albums-nav">Discografia</a>
-        <button id="new-search" type="button">Nova busca <span>⌕</span></button>
+        <a href="#visao-geral" class="is-active">Visão geral</a>
+        <a href="#discografia" id="albums-nav">Discografia</a>
+        <a href="#integrantes" id="members-nav">Integrantes</a>
+        <a href="#historia">História</a>
       </nav>
 
-      <section class="story-entry" aria-labelledby="story-entry-title">
-        <div><p>Experiência editorial</p><h3 id="story-entry-title">Story Mode</h3><span>Uma trajetória em registros.</span></div>
-        <button id="story-mode-open" type="button" aria-expanded="false" aria-controls="story-mode">Explorar a história <b aria-hidden="true">→</b></button>
-      </section>
+      <div class="profile-body">
+        <section class="profile-about reveal" id="historia" aria-labelledby="story-title">
+          <div class="profile-about__copy">
+            <h3 id="story-title">Sobre</h3>
+            <div class="biography-wrap" id="biography-wrap">
+              <p id="artist-biography"></p>
+              <button class="read-more is-hidden" id="read-more" type="button" aria-expanded="false">Ler história completa <span>→</span></button>
+            </div>
+          </div>
+          <aside class="profile-info" id="visao-geral" aria-labelledby="overview-title">
+            <h3 id="overview-title">Informações</h3>
+            <dl class="facts" aria-label="Informações do artista">
+              <div id="country-fact"><dt>Origem</dt><dd id="artist-country"></dd></div>
+              <div id="year-fact"><dt>Formação</dt><dd id="artist-year"></dd></div>
+              <div id="genre-fact"><dt>Gênero</dt><dd id="artist-genre"></dd></div>
+            </dl>
+            <button class="profile-sources-link" id="profile-sources-open" type="button">Fontes dos dados <span>↗</span></button>
+          </aside>
+        </section>
 
-      <section class="overview reveal" id="visao-geral" aria-labelledby="overview-title">
-        <div class="section-index"><span>01</span><i></i><p>Visão geral</p></div>
-        <div><h3 id="overview-title">Uma identidade<br>em frequências.</h3><dl class="facts" aria-label="Informações do artista">
-          <div id="genre-fact"><dt>Gênero</dt><dd id="artist-genre"></dd></div><div id="country-fact"><dt>Origem</dt><dd id="artist-country"></dd></div><div id="year-fact"><dt>Desde</dt><dd id="artist-year"></dd></div>
-        </dl></div>
-      </section>
+        <section class="discography reveal" id="discografia" aria-labelledby="albums-title">
+          <div class="profile-section-title"><div><h3 id="albums-title">Discografia</h3><p id="timeline-range">Lançamentos em ordem cronológica</p></div></div>
+          <div class="discography-filters" id="discography-filters" role="tablist" aria-label="Categorias da discografia"></div>
+          <div class="timeline" id="artist-albums" tabindex="0" aria-label="Discografia" role="tabpanel"></div>
+          <button class="load-more is-hidden" id="albums-load-more" type="button">Ver mais lançamentos <span>→</span></button>
+        </section>
 
-      <section class="story reveal" id="historia" aria-labelledby="story-title">
-        <div class="section-index"><span>02</span><i></i><p>A história</p></div>
-        <div class="story-layout"><h3 id="story-title">A história</h3><div class="biography-wrap" id="biography-wrap"><p id="artist-biography"></p><button class="read-more is-hidden" id="read-more" type="button" aria-expanded="false">Ler mais <span>↓</span></button></div></div>
-      </section>
+        <section class="members reveal" id="integrantes" aria-labelledby="members-title">
+          <div class="profile-section-title"><div><h3 id="members-title">Integrantes</h3><p>As pessoas por trás do som.</p></div></div>
+          <div class="members-list" id="artist-members"></div>
+        </section>
 
-      <section class="members reveal" id="integrantes" aria-labelledby="members-title">
-        <div class="section-heading"><div class="section-index"><span>03</span><i></i><p>Integrantes</p></div><div><h3 id="members-title">Por trás do som</h3><p>As pessoas que deram forma à identidade do artista.</p></div></div>
-        <div class="members-list" id="artist-members"></div>
-      </section>
-
-      <section class="discography reveal" id="discografia" aria-labelledby="albums-title">
-        <div class="section-heading"><div class="section-index"><span>04</span><i></i><p>Discografia</p></div><div><h3 id="albums-title">Discografia</h3><p id="timeline-range">Lançamentos em ordem cronológica</p></div></div>
-        <div class="discography-filters" id="discography-filters" role="tablist" aria-label="Categorias da discografia"></div>
-        <div class="timeline" id="artist-albums" tabindex="0" aria-label="Linha do tempo da discografia" role="tabpanel"></div>
-        <button class="load-more is-hidden" id="albums-load-more" type="button">Carregar mais</button>
-      </section>
+        <section class="story-entry" aria-labelledby="story-entry-title">
+          <div><p>STORY MODE</p><h3 id="story-entry-title">Uma trajetória em registros.</h3><span>Explore a história do artista em uma experiência visual.</span></div>
+          <button class="story-entry-open" type="button" data-story-proxy>Explorar história <b aria-hidden="true">→</b></button>
+        </section>
+      </div>
 
       <button class="data-trigger" id="data-trigger" type="button" aria-expanded="false" aria-controls="data-panel"><span class="data-dot"></span> Fontes dos dados <b>+</b></button>
       <aside class="data-panel" id="data-panel" aria-hidden="true" aria-labelledby="data-title">
@@ -168,7 +182,6 @@
         <small>Informações reunidas de múltiplas fontes musicais.</small>
       </aside><div class="panel-backdrop" id="panel-backdrop"></div>
     </article>
-
     <section class="story-mode is-hidden" id="story-mode" aria-hidden="true" aria-labelledby="story-mode-title" aria-modal="true" role="dialog">
       <header class="story-mode__bar"><a class="brand" href="#inicio" tabindex="-1">SoundScope</a><p data-story-progress aria-live="polite"></p><button data-story-close type="button">Fechar <span aria-hidden="true">×</span></button></header>
       <div data-story-content></div>

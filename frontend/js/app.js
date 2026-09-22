@@ -14,6 +14,7 @@ const elements = {
 };
 let requestInProgress = false;
 let spotifySession = null;
+let spotifyReady = Promise.resolve();
 let currentArtistName = "";
 
 function ensureArtistSkeleton() {
@@ -25,6 +26,11 @@ function ensureArtistSkeleton() {
   elements.loading.append(skeleton);
 }
 ensureArtistSkeleton();
+
+const profileSourcesOpen = document.querySelector("#profile-sources-open");
+if (profileSourcesOpen) profileSourcesOpen.addEventListener("click", () => elements.dataTrigger?.click());
+const storyProxy = document.querySelector("[data-story-proxy]");
+if (storyProxy) storyProxy.addEventListener("click", () => elements.storyOpen?.click());
 
 function setState(state, message = "") {
   elements.loading.classList.toggle("is-hidden", state !== "loading");
@@ -41,7 +47,7 @@ function setFact(selector, node, value) {
   node.textContent = value || "";
 }
 
-function renderArtist(payload) {
+async function renderArtist(payload) {
   if (!payload || typeof payload !== "object" || !payload.artist?.name) throw new Error("UNEXPECTED_RESPONSE");
   const artist = payload.artist;
   currentArtistName = artist.name;
@@ -55,9 +61,11 @@ function renderArtist(payload) {
   setFact("#year-fact", elements.year, artist.formed_year);
   renderBiography(artist.biography);
   renderMembers(Array.isArray(artist.members) ? artist.members : []);
-  renderAlbums(Array.isArray(artist.albums) ? artist.albums : []);
+  const initialAlbums = Array.isArray(artist.albums) ? artist.albums : [];
+  renderAlbums(initialAlbums);
   renderSourceIds(artist.source_ids, payload.metadata?.sources);
   storyController?.setArtist(artist);
+  if (!initialAlbums.length) await hydrateSpotifyCatalog(artist, payload);
   elements.image.src = artist.image_url || PLACEHOLDER_IMAGE;
   elements.image.alt = artist.image_url ? `Foto de ${artist.name}` : `Imagem de ${artist.name} indisponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} indisponível`; };
@@ -183,6 +191,63 @@ async function lookupSpotifyAlbum(album, card, output) {
   }
 }
 
+async function hydrateSpotifyCatalog(artist, payload) {
+  const status = (message, level = "info") => {
+    console[level === "error" ? "error" : "info"]("[SoundScope Catalog Resolver]", message);
+    if (elements.range && !artist.albums?.length) elements.range.textContent = message;
+  };
+  if (!window.SoundScopeSpotifyCatalog || !window.SoundScopeSpotify) {
+    status("Resolver Spotify indisponível nesta versão.", "error"); return;
+  }
+  if (!spotifySession) {
+    status("Conecte o Spotify para completar esta discografia."); return;
+  }
+  if (window.SoundScopeSpotify.isExpired(spotifySession)) {
+    status("Sua sessão do Spotify expirou. Reconecte para completar a discografia.", "error"); return;
+  }
+  try {
+    status("Buscando discografia complementar no Spotify…");
+    const resolved = await window.SoundScopeSpotifyCatalog.resolveArtistCatalog(
+      artist.name,
+      spotifySession.accessToken
+    );
+    console.info("[SoundScope Catalog Resolver] resultado", resolved);
+    if (!resolved.matched) {
+      status(`Spotify não confirmou a identidade de ${artist.name} (${resolved.reason || "sem correspondência"}).`, "error"); return;
+    }
+    if (!resolved.albums?.length) {
+      status("Spotify confirmou o artista, mas não retornou lançamentos.", "error"); return;
+    }
+    artist.albums = resolved.albums;
+    if ((!artist.image_url || elements.image.src.includes("artist-placeholder")) && resolved.artist?.imageUrl) {
+      artist.image_url = resolved.artist.imageUrl;
+      elements.image.src = resolved.artist.imageUrl;
+      elements.image.alt = `Foto de ${artist.name}`;
+    }
+    artist.source_ids = { ...(artist.source_ids || {}), spotify: resolved.artist.spotifyId };
+    const sources = { ...(payload.metadata?.sources || {}) };
+    sources.spotify = true;
+    renderAlbums(artist.albums);
+    renderSourceIds(artist.source_ids, sources);
+    storyController?.setArtist(artist);
+  } catch (error) {
+    console.error("[SoundScope Catalog Resolver] falhou", error);
+    const messages = {
+      SESSION_EXPIRED: "Sua sessão do Spotify expirou. Reconecte para completar a discografia.",
+      RATE_LIMITED: "O Spotify limitou a consulta do catálogo. Tente novamente em instantes.",
+      SPOTIFY_NETWORK_ERROR: "O Spotify recusou ou não conseguiu concluir a consulta do catálogo.",
+      SPOTIFY_TIMEOUT: "O Spotify demorou demais para responder ao catálogo.",
+      SPOTIFY_DISCONNECTED: "Conecte o Spotify para completar esta discografia."
+    };
+    status(messages[error.message] || `Falha no catálogo Spotify: ${error.message || "erro desconhecido"}.`, "error");
+    if (error.message === "SESSION_EXPIRED") {
+      window.SoundScopeSpotify.disconnect();
+      spotifySession = null;
+      renderSpotify("expired");
+    }
+  }
+}
+
 function renderSourceIds(sourceIds, sources) {
   const entries = sourceIds && typeof sourceIds === "object" ? Object.entries(sourceIds).filter(([, value]) => value) : [];
   elements.sourceIdsWrap.classList.toggle("is-hidden", entries.length === 0);
@@ -205,10 +270,11 @@ async function searchArtist(artistName) {
   elements.loading.scrollIntoView({ behavior: "smooth", block: "start" });
   const controller = new AbortController(); const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    await spotifyReady;
     const response = await fetch(`${API_BASE_URL}/artist/${encodeURIComponent(artistName)}`, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (response.status === 404) throw new Error("NOT_FOUND");
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
-    renderArtist(await response.json()); setState("success");
+    await renderArtist(await response.json()); setState("success");
     document.body.classList.add("artist-page-open");
     history.replaceState({ soundScopeArtist: artistName }, "", `artist.html?artist=${encodeURIComponent(artistName)}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -431,4 +497,4 @@ async function initializeSpotify() {
   spotifyElements.connect.addEventListener("click", async () => { renderSpotify("redirecting"); try { await spotify.begin(); } catch (_) { renderSpotify("error"); } });
   spotifyElements.disconnect.addEventListener("click", () => { spotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("disconnected"); document.querySelectorAll(".album__spotify").forEach((node) => { node.textContent = ""; delete node.parentElement.dataset.spotifyState; }); });
 }
-initializeSpotify();
+spotifyReady = initializeSpotify();
