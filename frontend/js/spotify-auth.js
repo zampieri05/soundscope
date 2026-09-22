@@ -4,7 +4,7 @@
   else root.SoundScopeSpotify = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const SPOTIFY_CONFIG = Object.freeze({ clientId: "9761def5856640cfa578814d94806c02", redirectUri: "https://d3pzcehppsvhm0.cloudfront.net/", authorizeUrl: "https://accounts.spotify.com/authorize", tokenUrl: "https://accounts.spotify.com/api/token", profileUrl: "https://api.spotify.com/v1/me", scopes: Object.freeze(["user-top-read", "user-read-recently-played"]) });
+  const SPOTIFY_CONFIG = Object.freeze({ clientId: "9761def5856640cfa578814d94806c02", redirectUri: `${location.origin}${location.pathname.includes("/preview-v2/") ? "/preview-v2/index.html" : "/"}`, authorizeUrl: "https://accounts.spotify.com/authorize", tokenUrl: "https://accounts.spotify.com/api/token", profileUrl: "https://api.spotify.com/v1/me", scopes: Object.freeze(["user-top-read", "user-read-recently-played"]) });
   const KEYS = { verifier: "spotify_pkce_verifier", state: "spotify_oauth_state", session: "spotify_session" };
   const PERSISTENT_SESSION_KEY = "soundscope_spotify_session";
   function base64Url(bytes) { let binary = ""; bytes.forEach((byte) => { binary += String.fromCharCode(byte); }); const encoded = typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64"); return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
