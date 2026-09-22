@@ -127,22 +127,15 @@
     if (exact.length === 1) {
       return { matched: true, confidence: "high", reason: "exact_artist_name", artist: exact[0] };
     }
-    // Spotify Search is relevance-ranked. For homonyms, accept the first exact-name
-    // candidate only when it has materially stronger audience evidence than #2.
-    // This avoids arbitrary ties while still resolving established artists.
-    const ranked = [...exact].sort((a, b) =>
-      (Number(b.followers) || 0) - (Number(a.followers) || 0) ||
-      (Number(b.popularity) || 0) - (Number(a.popularity) || 0)
-    );
-    const first = ranked[0], second = ranked[1];
-    const firstFollowers = Number(first.followers) || 0;
-    const secondFollowers = Number(second.followers) || 0;
-    const followerLead = firstFollowers >= 1000 && firstFollowers >= Math.max(1, secondFollowers) * 3;
-    const popularityLead = (Number(first.popularity) || 0) >= (Number(second.popularity) || 0) + 20;
-    if (followerLead || popularityLead) {
-      return { matched: true, confidence: "medium", reason: "exact_name_audience_lead", artist: first };
-    }
-    return { matched: false, confidence: "ambiguous", reason: "ambiguous_results", artist: null };
+    // Spotify's current Search response may omit followers/popularity/genres.
+    // Preserve API relevance order and accept the first exact-name result.
+    // We still refuse non-exact names, so this never falls back to fuzzy identity.
+    return {
+      matched: true,
+      confidence: "medium",
+      reason: "exact_name_spotify_relevance",
+      artist: exact[0]
+    };
   }
 
   async function spotifyJson(url, accessToken, fetchApi, signal) {
