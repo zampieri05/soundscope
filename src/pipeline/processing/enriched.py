@@ -22,6 +22,10 @@ from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 from src.utils.telemetry import increment, measure
+from src.services.artist_resolver import query_variants, names_compatible
+from src.services.lastfm import client as lastfm_client
+from src.services.lastfm.client import LastFMError
+from src.pipeline.transformers.lastfm import transform_lastfm_artist
 
 
 logger = logging.getLogger(__name__)
@@ -36,6 +40,8 @@ class EnrichedArtistProcessingResult(TypedDict, total=False):
     sources: dict[str, bool]
     theaudiodb_raw_s3_key: str | None
     musicbrainz_raw_s3_key: str | None
+    lastfm_artist_id: str | None
+    lastfm_raw_s3_key: str | None
     processed_s3_key: str
 
 
@@ -177,7 +183,8 @@ def _identity_rejected(reason: str, tadb: NormalizedArtist,
 def _same_identity(tadb: NormalizedArtist, mb: NormalizedArtist,
                    search_match: dict[str, Any], details: dict[str, Any]) -> bool:
     names = _candidate_names(search_match) | _candidate_names(details)
-    if _comparable_name(tadb.name) not in names:
+    if (_comparable_name(tadb.name) not in names
+            and not any(names_compatible(tadb.name, name) for name in names)):
         return _identity_rejected("name_mismatch", tadb, mb, search_match.get("score"))
 
     score = search_match.get("score")
@@ -211,11 +218,33 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     mb_match: dict[str, Any] = {}
     mb_details: dict[str, Any] = {}
     failures: list[Exception] = []
+    lastfm_artist = None
+    lastfm_id = lastfm_key = None
     extended_catalog = isinstance(getattr(theaudiodb_client, "AlbumsNotFoundError", None), type)
 
     try:
+        raw = None
+        tadb_query = artist_name
+        last_tadb_not_found = None
         with measure("theaudiodb.artist_ms"):
-            raw = theaudiodb_client.search_artist(artist_name)
+            for candidate_query in query_variants(artist_name):
+                try:
+                    candidate_raw = theaudiodb_client.search_artist(candidate_query)
+                    candidate_artist = transform_theaudiodb_artist(candidate_raw)
+                    if names_compatible(artist_name, candidate_artist.name):
+                        raw = candidate_raw
+                        tadb_query = candidate_query
+                        break
+                except theaudiodb_client.ArtistNotFoundError as error:
+                    last_tadb_not_found = error
+        if raw is None:
+            if last_tadb_not_found:
+                raise last_tadb_not_found
+            raise theaudiodb_client.ArtistNotFoundError(
+                f'Artista "{artist_name}" não encontrado.'
+            )
+        if tadb_query != artist_name:
+            logger.info("Artist Resolver matched TheAudioDB query_variant=%r", tadb_query)
         tadb_id = _first_artist_id(raw)
         with measure("s3.raw_ms"):
             tadb_key = save_raw_json("theaudiodb", raw, "artists", tadb_id)
@@ -242,9 +271,32 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         )
 
     try:
+        search_raw = None
+        mb_match = None
+        mb_query = artist_name
+        last_mb_not_found = None
         with measure("musicbrainz.search_ms"):
-            search_raw = musicbrainz_client.search_artist(artist_name)
-        mb_match = _select_musicbrainz_artist(search_raw, artist_name)
+            for candidate_query in query_variants(artist_name):
+                try:
+                    candidate_raw = musicbrainz_client.search_artist(candidate_query)
+                    candidate_match = _select_musicbrainz_artist(
+                        candidate_raw, candidate_query
+                    )
+                    if names_compatible(artist_name, candidate_match.get("name", "")):
+                        search_raw = candidate_raw
+                        mb_match = candidate_match
+                        mb_query = candidate_query
+                        break
+                except ArtistNotFoundError as error:
+                    last_mb_not_found = error
+        if search_raw is None or mb_match is None:
+            if last_mb_not_found:
+                raise last_mb_not_found
+            raise ArtistNotFoundError(
+                "O Artist Resolver não encontrou correspondência confiável."
+            )
+        if mb_query != artist_name:
+            logger.info("Artist Resolver matched MusicBrainz query_variant=%r", mb_query)
         mbid = _musicbrainz_id(mb_match)
         with measure("s3.raw_ms"):
             save_raw_json("musicbrainz", search_raw, "artists", mbid)
@@ -283,6 +335,48 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
             mbid, type(error).__name__,
         )
 
+    # Last.fm is an independent discovery fallback. It is intentionally
+    # conservative: only exact/resolver-compatible names are accepted.
+    try:
+        lastfm_raw = None
+        # Try resolver variants in order, but prefer a richer compatible
+        # canonical identity over a sparse exact-name homonym.
+        candidates: list[tuple[int, dict[str, Any], NormalizedArtist]] = []
+        for candidate_query in query_variants(artist_name):
+            try:
+                candidate_raw = lastfm_client.get_artist_info(candidate_query)
+                candidate_artist = transform_lastfm_artist(candidate_raw)
+                if names_compatible(artist_name, candidate_artist.name):
+                    richness = sum(bool(value) for value in (
+                        candidate_artist.genre,
+                        candidate_artist.biography,
+                        candidate_artist.image_url,
+                        candidate_artist.musicbrainz_id,
+                    ))
+                    # A resolver-generated "Music" variant gets a small
+                    # deterministic tie-break only after metadata richness.
+                    canonical_bonus = int(
+                        _comparable_name(candidate_artist.name).endswith(" music")
+                    )
+                    candidates.append(
+                        (richness * 10 + canonical_bonus, candidate_raw, candidate_artist)
+                    )
+            except lastfm_client.ArtistNotFoundError:
+                continue
+        if candidates:
+            _, lastfm_raw, lastfm_artist = max(candidates, key=lambda item: item[0])
+        if lastfm_artist is None:
+            raise lastfm_client.ArtistNotFoundError(
+                f'Artista "{artist_name}" não encontrado.'
+            )
+        lastfm_id = lastfm_artist.source_artist_id
+        with measure("s3.raw_ms"):
+            lastfm_key = save_raw_json("lastfm", lastfm_raw, "artists", lastfm_id)
+        increment("s3.raw_writes")
+    except LastFMError as error:
+        failures.append(error)
+        logger.info("Last.fm source unavailable outcome=%s", type(error).__name__)
+
     with measure("identity_ms"):
         same_identity = bool(tadb_artist and mb_artist and
                              _same_identity(tadb_artist, mb_artist, mb_match, mb_details))
@@ -297,11 +391,15 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         elif tadb_artist:
             logger.info("Using TheAudioDB fallback artist_id=%s", tadb_id)
             enriched = partial_artist(tadb_artist, tadb_albums)
+        elif lastfm_artist:
+            logger.info("Using Last.fm fallback artist_id=%s", lastfm_id)
+            enriched = partial_artist(lastfm_artist)
         else:
             enriched = None
     if enriched is None:
         not_found_types = (theaudiodb_client.ArtistNotFoundError,
                            ArtistNotFoundError,
+                           lastfm_client.ArtistNotFoundError,
                            UsableArtistNotFoundError)
         upstream_failures = [
             error for error in failures if not isinstance(error, not_found_types)
@@ -330,9 +428,11 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     # presentes no perfil, nunca apenas a existência de um candidato upstream.
     profile_tadb_id = enriched.source_ids.get("theaudiodb")
     profile_mb_id = enriched.source_ids.get("musicbrainz")
+    profile_lastfm_id = enriched.source_ids.get("lastfm")
     has_tadb_id = isinstance(profile_tadb_id, str) and bool(profile_tadb_id.strip())
     has_mb_id = isinstance(profile_mb_id, str) and bool(profile_mb_id.strip())
-    storage_id = profile_tadb_id if has_tadb_id else profile_mb_id
+    has_lastfm_id = isinstance(profile_lastfm_id, str) and bool(profile_lastfm_id.strip())
+    storage_id = profile_tadb_id if has_tadb_id else (profile_mb_id if has_mb_id else profile_lastfm_id)
     with measure("s3.processed_ms"):
         processed_key = save_processed_json(
             serialized, "artists", storage_id, data_type="enriched"
@@ -343,10 +443,12 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         with measure("dynamodb_ms"):
             save_enriched_artist(enriched)
         increment("dynamodb_writes")
-    sources = {"theaudiodb": has_tadb_id, "musicbrainz": has_mb_id}
+    sources = {"theaudiodb": has_tadb_id, "musicbrainz": has_mb_id, "lastfm": has_lastfm_id}
     return {"artist": enriched, "artist_name": artist_name,
             "theaudiodb_artist_id": profile_tadb_id if has_tadb_id else None,
             "musicbrainz_mbid": profile_mb_id if has_mb_id else None,
+            "lastfm_artist_id": profile_lastfm_id if has_lastfm_id else None,
+            "lastfm_raw_s3_key": lastfm_key,
             "source": "+".join(key for key, used in sources.items() if used),
             "sources": sources, "theaudiodb_raw_s3_key": tadb_key,
             "musicbrainz_raw_s3_key": mb_key, "processed_s3_key": processed_key}
