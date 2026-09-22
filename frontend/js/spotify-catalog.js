@@ -183,7 +183,7 @@
     const timer = setTimeout(() => controller.abort(), options.timeoutMs || REQUEST_TIMEOUT_MS);
     const releases = [];
     let next = `https://api.spotify.com/v1/artists/${encodeURIComponent(spotifyArtistId)}/albums?` +
-      new URLSearchParams({ include_groups: "album,single,compilation", limit: "50" });
+      new URLSearchParams({ include_groups: "album,single,compilation", limit: "10" });
     try {
       while (next) {
         const data = await spotifyJson(next, accessToken, fetchApi, controller.signal);
