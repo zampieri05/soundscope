@@ -22,6 +22,7 @@ from src.services.theaudiodb.client import TheAudioDBError, AlbumsNotFoundError
 from src.storage.dynamodb import save_enriched_artist
 from src.storage.s3 import save_processed_json, save_raw_json
 from src.utils.telemetry import increment, measure
+from src.services.artist_resolver import query_variants, names_compatible
 
 
 logger = logging.getLogger(__name__)
@@ -214,8 +215,28 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     extended_catalog = isinstance(getattr(theaudiodb_client, "AlbumsNotFoundError", None), type)
 
     try:
+        raw = None
+        tadb_query = artist_name
+        last_tadb_not_found = None
         with measure("theaudiodb.artist_ms"):
-            raw = theaudiodb_client.search_artist(artist_name)
+            for candidate_query in query_variants(artist_name):
+                try:
+                    candidate_raw = theaudiodb_client.search_artist(candidate_query)
+                    candidate_artist = transform_theaudiodb_artist(candidate_raw)
+                    if names_compatible(artist_name, candidate_artist.name):
+                        raw = candidate_raw
+                        tadb_query = candidate_query
+                        break
+                except theaudiodb_client.ArtistNotFoundError as error:
+                    last_tadb_not_found = error
+        if raw is None:
+            if last_tadb_not_found:
+                raise last_tadb_not_found
+            raise theaudiodb_client.ArtistNotFoundError(
+                f'Artista "{artist_name}" não encontrado.'
+            )
+        if tadb_query != artist_name:
+            logger.info("Artist Resolver matched TheAudioDB query_variant=%r", tadb_query)
         tadb_id = _first_artist_id(raw)
         with measure("s3.raw_ms"):
             tadb_key = save_raw_json("theaudiodb", raw, "artists", tadb_id)
@@ -242,9 +263,32 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         )
 
     try:
+        search_raw = None
+        mb_match = None
+        mb_query = artist_name
+        last_mb_not_found = None
         with measure("musicbrainz.search_ms"):
-            search_raw = musicbrainz_client.search_artist(artist_name)
-        mb_match = _select_musicbrainz_artist(search_raw, artist_name)
+            for candidate_query in query_variants(artist_name):
+                try:
+                    candidate_raw = musicbrainz_client.search_artist(candidate_query)
+                    candidate_match = _select_musicbrainz_artist(
+                        candidate_raw, candidate_query
+                    )
+                    if names_compatible(artist_name, candidate_match.get("name", "")):
+                        search_raw = candidate_raw
+                        mb_match = candidate_match
+                        mb_query = candidate_query
+                        break
+                except ArtistNotFoundError as error:
+                    last_mb_not_found = error
+        if search_raw is None or mb_match is None:
+            if last_mb_not_found:
+                raise last_mb_not_found
+            raise ArtistNotFoundError(
+                "O Artist Resolver não encontrou correspondência confiável."
+            )
+        if mb_query != artist_name:
+            logger.info("Artist Resolver matched MusicBrainz query_variant=%r", mb_query)
         mbid = _musicbrainz_id(mb_match)
         with measure("s3.raw_ms"):
             save_raw_json("musicbrainz", search_raw, "artists", mbid)
