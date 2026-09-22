@@ -112,7 +112,8 @@
       spotifyUrl: artist?.external_urls?.spotify || "",
       followers: Number(artist?.followers?.total) || 0,
       popularity: Number(artist?.popularity) || 0,
-      genres: Array.isArray(artist?.genres) ? artist.genres : []
+      genres: Array.isArray(artist?.genres) ? artist.genres : [],
+      imageUrl: artist?.images?.[0]?.url || ""
     };
   }
 
