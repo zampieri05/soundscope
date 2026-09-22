@@ -8,7 +8,7 @@ import unicodedata
 def comparable_name(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value or "")
     plain = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return " ".join(re.sub(r"[^\\w]+", " ", plain.casefold()).split())
+    return " ".join(re.sub("[^\\w]+", " ", plain.casefold()).split())
 
 
 def query_variants(query: str) -> list[str]:
@@ -19,7 +19,7 @@ def query_variants(query: str) -> list[str]:
     variants = [clean]
     folded = comparable_name(clean)
     if folded.endswith(" music"):
-        base = re.sub(r"\\s+music\\s*$", "", clean, flags=re.IGNORECASE).strip()
+        base = re.sub("\\s+music\\s*$", "", clean, flags=re.IGNORECASE).strip()
         if base:
             variants.append(base)
     else:
