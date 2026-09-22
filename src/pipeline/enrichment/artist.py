@@ -12,6 +12,7 @@ from src.models import (
     NormalizedArtist,
 )
 from src.pipeline.enrichment.errors import ArtistEnrichmentError
+from src.services.artist_resolver import names_compatible
 
 T = TypeVar("T")
 
@@ -61,9 +62,7 @@ def enrich_artist(
         raise ArtistEnrichmentError(
             "O argumento musicbrainz_artist deve ter source='musicbrainz'."
         )
-    if _comparable_name(theaudiodb_artist.name) != _comparable_name(
-        musicbrainz_artist.name
-    ):
+    if not names_compatible(theaudiodb_artist.name, musicbrainz_artist.name):
         raise ArtistEnrichmentError(
             "Não é possível enriquecer artistas com nomes diferentes."
         )
