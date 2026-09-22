@@ -41,7 +41,7 @@ function setFact(selector, node, value) {
   node.textContent = value || "";
 }
 
-function renderArtist(payload) {
+async function renderArtist(payload) {
   if (!payload || typeof payload !== "object" || !payload.artist?.name) throw new Error("UNEXPECTED_RESPONSE");
   const artist = payload.artist;
   currentArtistName = artist.name;
@@ -59,7 +59,7 @@ function renderArtist(payload) {
   renderAlbums(initialAlbums);
   renderSourceIds(artist.source_ids, payload.metadata?.sources);
   storyController?.setArtist(artist);
-  if (!initialAlbums.length) hydrateSpotifyCatalog(artist, payload);
+  if (!initialAlbums.length) await hydrateSpotifyCatalog(artist, payload);
   elements.image.src = artist.image_url || PLACEHOLDER_IMAGE;
   elements.image.alt = artist.image_url ? `Foto de ${artist.name}` : `Imagem de ${artist.name} indisponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} indisponível`; };
@@ -262,7 +262,7 @@ async function searchArtist(artistName) {
     const response = await fetch(`${API_BASE_URL}/artist/${encodeURIComponent(artistName)}`, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (response.status === 404) throw new Error("NOT_FOUND");
     if (!response.ok) throw new Error(`HTTP_${response.status}`);
-    renderArtist(await response.json()); setState("success");
+    await renderArtist(await response.json()); setState("success");
     document.body.classList.add("artist-page-open");
     history.replaceState({ soundScopeArtist: artistName }, "", `artist.html?artist=${encodeURIComponent(artistName)}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
