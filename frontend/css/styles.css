@@ -94,3 +94,133 @@ button,a,input{-webkit-tap-highlight-color:transparent}.skip-link{border-radius:
 @media(max-width:380px){.spotify-button span{max-width:82px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.home{min-height:730px}.home-copy{margin-top:24px}.home h1{font-size:38px}.search{padding-left:12px}.search svg{display:none}.search input{font-size:14px}.home-path{font-size:11px}.artist-nav{gap:16px}.period-selector button{font-size:12px;padding:0 9px}}
 .timeline.is-switching{animation:discography-in .25s ease-out}@keyframes discography-in{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.timeline.is-switching{animation:none}.discography-filter{transition:none}}
 
+
+
+/* Artist Profile 2.3 — compact editorial layout -------------------------- */
+.artist-route .artist-hero{
+  min-height:0;
+  height:clamp(360px,47vw,500px);
+  margin-top:0;
+  display:grid;
+  grid-template-columns:minmax(300px,42%) 1fr;
+  overflow:hidden;
+  background:#0b1018;
+  border-bottom:1px solid rgba(158,171,187,.14);
+}
+.artist-route .artist-photo{
+  position:absolute;
+  inset:0 0 0 42%;
+  width:auto;
+  height:100%;
+  overflow:hidden;
+  background:var(--surface);
+}
+.artist-route .artist-photo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center 32%;
+  filter:saturate(.72) contrast(1.04) brightness(.78);
+}
+.artist-route .artist-photo>div{
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,#0b1018 0%,rgba(11,16,24,.97) 5%,rgba(11,16,24,.74) 28%,rgba(11,16,24,.12) 68%,rgba(11,16,24,.05) 100%),
+    linear-gradient(0deg,rgba(11,16,24,.8),transparent 38%);
+}
+.artist-route .artist-intro{
+  position:relative;
+  z-index:2;
+  width:min(620px,100%);
+  align-self:end;
+  padding:0 0 58px var(--artist-pad);
+}
+.artist-route .artist-intro .kicker{
+  margin-bottom:14px;
+  color:#8ea1ba;
+  font-size:11px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.artist-route .artist-intro h2{
+  max-width:650px;
+  margin:0 0 22px;
+  font-size:clamp(42px,4.7vw,68px);
+  line-height:.98;
+  letter-spacing:-.055em;
+}
+.artist-route .artist-meta{
+  margin:0;
+  color:#d3dbe5;
+  font-size:15px;
+}
+.artist-route .artist-formed{
+  margin-top:8px;
+  color:#8f9db0;
+  font-size:13px;
+}
+.artist-route .vertical-note{
+  right:24px;
+  bottom:28px;
+  top:auto;
+  font-size:8px;
+  opacity:.45;
+}
+.artist-route .artist-nav{
+  position:sticky;
+  top:0;
+  z-index:18;
+  height:62px;
+  padding:0 var(--artist-pad);
+  justify-content:flex-start;
+  gap:34px;
+  border-bottom:1px solid rgba(158,171,187,.14);
+  background:rgba(9,13,20,.94);
+  backdrop-filter:blur(18px);
+}
+.artist-route .artist-nav a{
+  height:62px;
+  display:flex;
+  align-items:center;
+  color:#9da9b8;
+  font-size:13px;
+}
+.artist-route .artist-nav a.is-active{color:#fff}
+.artist-route .artist-nav a.is-active:after{bottom:0}
+.artist-route .artist-nav #new-search{
+  margin-left:auto;
+  min-height:36px;
+  padding:0 13px;
+  border-color:rgba(158,171,187,.16);
+  background:#111923;
+}
+.artist-route .story-entry{
+  width:auto;
+  margin:26px var(--artist-pad) 0;
+  padding:20px 22px;
+  border-color:rgba(158,171,187,.14);
+  background:linear-gradient(110deg,rgba(19,28,41,.84),rgba(59,130,246,.055));
+}
+.artist-route .story-entry h3{font-size:24px}
+.artist-route .overview,.artist-route .story,.artist-route .members,.artist-route .discography{
+  padding-top:76px;
+  padding-bottom:76px;
+}
+@media(max-width:900px){
+  .artist-route .artist-hero{height:430px;grid-template-columns:1fr}
+  .artist-route .artist-photo{inset:0;width:100%}
+  .artist-route .artist-photo>div{background:linear-gradient(90deg,rgba(11,16,24,.95),rgba(11,16,24,.5) 58%,rgba(11,16,24,.16)),linear-gradient(0deg,#0b1018,transparent 48%)}
+  .artist-route .artist-intro{padding-bottom:42px}
+}
+@media(max-width:700px){
+  .artist-route .artist-hero{height:390px}
+  .artist-route .artist-photo img{object-position:center 28%}
+  .artist-route .artist-intro{padding:0 var(--artist-pad) 32px}
+  .artist-route .artist-intro h2{font-size:clamp(38px,12vw,52px);margin-bottom:16px}
+  .artist-route .vertical-note{display:none}
+  .artist-route .artist-nav{overflow-x:auto;gap:24px;padding:0 var(--artist-pad)}
+  .artist-route .artist-nav a{white-space:nowrap}
+  .artist-route .artist-nav #new-search{display:none}
+  .artist-route .story-entry{margin:18px var(--artist-pad) 0}
+}
