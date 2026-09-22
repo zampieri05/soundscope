@@ -79,3 +79,52 @@ body.artist-route .data-trigger{position:fixed!important;right:18px!important;bo
 @media(max-width:1280px){body.artist-route .profile-hero,body.artist-route .profile-body{max-width:calc(100% - 48px)!important}body.artist-route .profile-hero__content{padding-right:160px!important}body.artist-route .timeline{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
 @media(max-width:900px){body.artist-route .topbar{grid-template-columns:auto 1fr auto!important}.scope-nav{display:none!important}body.artist-route .artist-header-search{grid-column:2!important}body.artist-route .profile-hero{grid-template-columns:45% 55%!important}.profile-hero__texture{display:none!important}body.artist-route .profile-hero__content{padding:38px 24px!important}body.artist-route .profile-about{grid-template-columns:1fr!important;gap:20px!important}body.artist-route .timeline{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
 @media(max-width:650px){body.artist-route .topbar{padding:0 14px!important;gap:10px!important}body.artist-route .artist-header-search{display:none!important}body.artist-route .audio-hub{margin-right:64px!important}body.artist-route .profile-hero{max-width:100%!important;grid-template-columns:1fr!important;padding:0!important}body.artist-route .profile-hero__image{height:240px!important;border-radius:0!important}body.artist-route .profile-hero__content{padding:24px 20px 28px!important}body.artist-route .profile-hero__texture{display:none!important}body.artist-route .artist-nav{top:56px!important;padding:0 18px!important;gap:24px!important;overflow-x:auto!important}body.artist-route .artist-nav a{white-space:nowrap!important}body.artist-route .profile-body{max-width:100%!important;padding:0 18px 40px!important}body.artist-route .timeline{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.artist-route .members-list{grid-template-columns:1fr!important}}
+
+/* Artist Profile 4.1 — header + signature polish */
+body.artist-route .topbar{
+  grid-template-columns:auto auto minmax(300px,1fr) auto!important;
+  gap:24px!important;
+}
+body.artist-route .topbar-actions{display:contents!important}
+body.artist-route .account-entry{
+  grid-column:4!important;grid-row:1!important;justify-self:end!important;
+  width:auto!important;min-width:84px!important;height:36px!important;padding:0 16px!important;
+  margin:0!important;border:1px solid rgba(112,151,185,.28)!important;border-radius:10px!important;
+  background:#081724!important;color:#f4f7fa!important;
+}
+body.artist-route .account-entry__guest{font-size:11px!important;font-weight:600!important}
+body.artist-route .audio-hub{
+  grid-column:4!important;grid-row:1!important;justify-self:end!important;
+  width:auto!important;min-width:142px!important;height:36px!important;margin:0 104px 0 0!important;padding:0 13px!important;
+  border:1px solid rgba(32,145,232,.38)!important;border-radius:10px!important;
+  background:linear-gradient(135deg,#071827,#092039)!important;
+}
+body.artist-route .audio-hub__icon{transform:scale(.78)!important}
+body.artist-route .audio-hub__copy{display:flex!important;align-items:center!important}
+body.artist-route .audio-hub__copy small{display:none!important}
+body.artist-route .audio-hub__copy strong{font-size:10px!important;white-space:nowrap!important}
+body.artist-route .artist-header-search{
+  width:min(100%,480px)!important;height:36px!important;
+  border-radius:10px!important;background:#061522!important;
+}
+body.artist-route .profile-hero__texture{width:200px!important}
+body.artist-route .profile-hero__texture span{position:static!important;transform:none!important;text-align:left!important}
+body.artist-route .profile-hero__texture .profile-hero__eyebrow{
+  position:absolute!important;right:18px!important;top:48px!important;
+  color:#299ff4!important;font:600 8px/1 "DM Sans",sans-serif!important;letter-spacing:.22em!important;
+}
+body.artist-route .profile-hero__texture strong{
+  position:absolute!important;right:18px!important;top:70px!important;
+  color:rgba(229,240,249,.72)!important;font:500 20px/1.08 "Manrope",sans-serif!important;
+  letter-spacing:-.035em!important;text-align:right!important;
+}
+body.artist-route .profile-hero__texture:after{
+  content:""!important;position:absolute!important;right:18px!important;top:142px!important;
+  width:52px!important;height:1px!important;background:#159df6!important;opacity:.75!important;
+}
+@media(max-width:1000px){
+ body.artist-route .scope-nav{display:none!important}
+ body.artist-route .topbar{grid-template-columns:auto minmax(220px,1fr) auto!important}
+ body.artist-route .artist-header-search{grid-column:2!important}
+ body.artist-route .account-entry,body.artist-route .audio-hub{grid-column:3!important}
+}
