@@ -55,9 +55,11 @@ function renderArtist(payload) {
   setFact("#year-fact", elements.year, artist.formed_year);
   renderBiography(artist.biography);
   renderMembers(Array.isArray(artist.members) ? artist.members : []);
-  renderAlbums(Array.isArray(artist.albums) ? artist.albums : []);
+  const initialAlbums = Array.isArray(artist.albums) ? artist.albums : [];
+  renderAlbums(initialAlbums);
   renderSourceIds(artist.source_ids, payload.metadata?.sources);
   storyController?.setArtist(artist);
+  if (!initialAlbums.length) hydrateSpotifyCatalog(artist, payload);
   elements.image.src = artist.image_url || PLACEHOLDER_IMAGE;
   elements.image.alt = artist.image_url ? `Foto de ${artist.name}` : `Imagem de ${artist.name} indisponível`;
   elements.image.onerror = () => { elements.image.onerror = null; elements.image.src = PLACEHOLDER_IMAGE; elements.image.alt = `Imagem de ${artist.name} indisponível`; };
@@ -180,6 +182,33 @@ async function lookupSpotifyAlbum(album, card, output) {
     if (error.message === "SESSION_EXPIRED") { spotify.disconnect(); window.SoundScopeSpotifyInsights?.clearCache(); window.SoundScopeSpotifyHistory?.clearCache(); spotifySession = null; renderSpotify("expired"); output.textContent = "Sua sessão do Spotify expirou."; }
     else if (error.message === "RATE_LIMITED") output.textContent = "Spotify ocupado. Tente novamente em instantes.";
     else output.textContent = "Não foi possível consultar o Spotify. Tente novamente.";
+  }
+}
+
+async function hydrateSpotifyCatalog(artist, payload) {
+  if (!spotifySession || !window.SoundScopeSpotifyCatalog || !window.SoundScopeSpotify) return;
+  if (window.SoundScopeSpotify.isExpired(spotifySession)) return;
+  try {
+    const resolved = await window.SoundScopeSpotifyCatalog.resolveArtistCatalog(
+      artist.name,
+      spotifySession.accessToken
+    );
+    if (!resolved.matched || !resolved.albums?.length) return;
+    artist.albums = resolved.albums;
+    artist.source_ids = { ...(artist.source_ids || {}), spotify: resolved.artist.spotifyId };
+    const sources = { ...(payload.metadata?.sources || {}) };
+    sources.spotify = true;
+    renderAlbums(artist.albums);
+    renderSourceIds(artist.source_ids, sources);
+    storyController?.setArtist(artist);
+  } catch (error) {
+    // Spotify is an optional catalog fallback. A failure must never hide the
+    // Last.fm/MusicBrainz artist profile that was already rendered.
+    if (error.message === "SESSION_EXPIRED") {
+      window.SoundScopeSpotify.disconnect();
+      spotifySession = null;
+      renderSpotify("expired");
+    }
   }
 }
 
