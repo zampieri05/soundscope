@@ -377,6 +377,50 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         failures.append(error)
         logger.info("Last.fm source unavailable outcome=%s", type(error).__name__)
 
+    # Catalog Resolver: once Last.fm discovers a better canonical name,
+    # retry MusicBrainz with that canonical identity. This lets a Last.fm-only
+    # discovery gain a MusicBrainz release-group catalog without pretending the
+    # original ambiguous search was a verified match.
+    if lastfm_artist and not mb_artist and lastfm_artist.name:
+        canonical_name = lastfm_artist.name
+        try:
+            with measure("musicbrainz.catalog_resolver_search_ms"):
+                catalog_search = musicbrainz_client.search_artist(canonical_name)
+                catalog_match = _select_musicbrainz_artist(
+                    catalog_search, canonical_name
+                )
+            if names_compatible(canonical_name, catalog_match.get("name", "")):
+                catalog_mbid = _musicbrainz_id(catalog_match)
+                with measure("musicbrainz.catalog_resolver_artist_ms"):
+                    catalog_details = musicbrainz_client.get_artist_details(catalog_mbid)
+                catalog_artist = transform_musicbrainz_artist(catalog_details)
+                if names_compatible(canonical_name, catalog_artist.name):
+                    with measure("musicbrainz.catalog_resolver_release_groups_ms"):
+                        catalog_raw = musicbrainz_client.get_release_groups(catalog_mbid)
+                    with measure("s3.raw_ms"):
+                        save_raw_json(
+                            "musicbrainz", catalog_raw, "release-groups", catalog_mbid
+                        )
+                    increment("s3.raw_writes")
+                    with measure("transform_ms"):
+                        catalog_albums = transform_musicbrainz_albums(catalog_raw)
+                    if catalog_albums:
+                        mbid = catalog_mbid
+                        mb_artist = catalog_artist
+                        mb_match = catalog_match
+                        mb_details = catalog_details
+                        mb_albums = catalog_albums
+                        members = transform_musicbrainz_members(catalog_details)
+                        logger.info(
+                            "Catalog Resolver matched canonical_name=%r mbid=%s releases=%d",
+                            canonical_name, catalog_mbid, len(catalog_albums),
+                        )
+        except MusicBrainzError as error:
+            logger.info(
+                "Catalog Resolver MusicBrainz unavailable canonical_name=%r outcome=%s",
+                canonical_name, type(error).__name__,
+            )
+
     with measure("identity_ms"):
         same_identity = bool(tadb_artist and mb_artist and
                              _same_identity(tadb_artist, mb_artist, mb_match, mb_details))
@@ -387,7 +431,24 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
         elif mb_artist:
             if not tadb_artist:
                 logger.info("Using MusicBrainz fallback mbid=%s", mbid)
-            enriched = partial_artist(mb_artist, mb_albums, members)
+            # Preserve Last.fm presentation metadata when it was the source
+            # that resolved the canonical identity, while attaching the
+            # verified MusicBrainz catalog and provenance.
+            if lastfm_artist and names_compatible(lastfm_artist.name, mb_artist.name):
+                base = partial_artist(lastfm_artist, mb_albums, members)
+                enriched = EnrichedArtist(
+                    name=base.name,
+                    country=mb_artist.country or base.country,
+                    genre=base.genre or mb_artist.genre,
+                    formed_year=mb_artist.formed_year or base.formed_year,
+                    biography=base.biography,
+                    image_url=base.image_url,
+                    source_ids={**base.source_ids, "musicbrainz": mb_artist.source_artist_id},
+                    members=base.members,
+                    albums=base.albums,
+                )
+            else:
+                enriched = partial_artist(mb_artist, mb_albums, members)
         elif tadb_artist:
             logger.info("Using TheAudioDB fallback artist_id=%s", tadb_id)
             enriched = partial_artist(tadb_artist, tadb_albums)
