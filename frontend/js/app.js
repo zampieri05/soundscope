@@ -27,6 +27,11 @@ function ensureArtistSkeleton() {
 }
 ensureArtistSkeleton();
 
+const profileSourcesOpen = document.querySelector("#profile-sources-open");
+if (profileSourcesOpen) profileSourcesOpen.addEventListener("click", () => elements.dataTrigger?.click());
+const storyProxy = document.querySelector("[data-story-proxy]");
+if (storyProxy) storyProxy.addEventListener("click", () => elements.storyOpen?.click());
+
 function setState(state, message = "") {
   elements.loading.classList.toggle("is-hidden", state !== "loading");
   elements.error.classList.toggle("is-hidden", state !== "error");
