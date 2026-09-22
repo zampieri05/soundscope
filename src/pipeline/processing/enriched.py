@@ -339,16 +339,32 @@ def process_enriched_artist(artist_name: str) -> EnrichedArtistProcessingResult:
     # conservative: only exact/resolver-compatible names are accepted.
     try:
         lastfm_raw = None
+        # Try resolver variants in order, but prefer a richer compatible
+        # canonical identity over a sparse exact-name homonym.
+        candidates: list[tuple[int, dict[str, Any], NormalizedArtist]] = []
         for candidate_query in query_variants(artist_name):
             try:
                 candidate_raw = lastfm_client.get_artist_info(candidate_query)
                 candidate_artist = transform_lastfm_artist(candidate_raw)
                 if names_compatible(artist_name, candidate_artist.name):
-                    lastfm_raw = candidate_raw
-                    lastfm_artist = candidate_artist
-                    break
+                    richness = sum(bool(value) for value in (
+                        candidate_artist.genre,
+                        candidate_artist.biography,
+                        candidate_artist.image_url,
+                        candidate_artist.musicbrainz_id,
+                    ))
+                    # A resolver-generated "Music" variant gets a small
+                    # deterministic tie-break only after metadata richness.
+                    canonical_bonus = int(
+                        _comparable_name(candidate_artist.name).endswith(" music")
+                    )
+                    candidates.append(
+                        (richness * 10 + canonical_bonus, candidate_raw, candidate_artist)
+                    )
             except lastfm_client.ArtistNotFoundError:
                 continue
+        if candidates:
+            _, lastfm_raw, lastfm_artist = max(candidates, key=lambda item: item[0])
         if lastfm_artist is None:
             raise lastfm_client.ArtistNotFoundError(
                 f'Artista "{artist_name}" não encontrado.'
