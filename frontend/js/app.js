@@ -186,14 +186,32 @@ async function lookupSpotifyAlbum(album, card, output) {
 }
 
 async function hydrateSpotifyCatalog(artist, payload) {
-  if (!spotifySession || !window.SoundScopeSpotifyCatalog || !window.SoundScopeSpotify) return;
-  if (window.SoundScopeSpotify.isExpired(spotifySession)) return;
+  const status = (message, level = "info") => {
+    console[level === "error" ? "error" : "info"]("[SoundScope Catalog Resolver]", message);
+    if (elements.range && !artist.albums?.length) elements.range.textContent = message;
+  };
+  if (!window.SoundScopeSpotifyCatalog || !window.SoundScopeSpotify) {
+    status("Resolver Spotify indisponível nesta versão.", "error"); return;
+  }
+  if (!spotifySession) {
+    status("Conecte o Spotify para completar esta discografia."); return;
+  }
+  if (window.SoundScopeSpotify.isExpired(spotifySession)) {
+    status("Sua sessão do Spotify expirou. Reconecte para completar a discografia.", "error"); return;
+  }
   try {
+    status("Buscando discografia complementar no Spotify…");
     const resolved = await window.SoundScopeSpotifyCatalog.resolveArtistCatalog(
       artist.name,
       spotifySession.accessToken
     );
-    if (!resolved.matched || !resolved.albums?.length) return;
+    console.info("[SoundScope Catalog Resolver] resultado", resolved);
+    if (!resolved.matched) {
+      status(`Spotify não confirmou a identidade de ${artist.name} (${resolved.reason || "sem correspondência"}).`, "error"); return;
+    }
+    if (!resolved.albums?.length) {
+      status("Spotify confirmou o artista, mas não retornou lançamentos.", "error"); return;
+    }
     artist.albums = resolved.albums;
     artist.source_ids = { ...(artist.source_ids || {}), spotify: resolved.artist.spotifyId };
     const sources = { ...(payload.metadata?.sources || {}) };
@@ -202,8 +220,15 @@ async function hydrateSpotifyCatalog(artist, payload) {
     renderSourceIds(artist.source_ids, sources);
     storyController?.setArtist(artist);
   } catch (error) {
-    // Spotify is an optional catalog fallback. A failure must never hide the
-    // Last.fm/MusicBrainz artist profile that was already rendered.
+    console.error("[SoundScope Catalog Resolver] falhou", error);
+    const messages = {
+      SESSION_EXPIRED: "Sua sessão do Spotify expirou. Reconecte para completar a discografia.",
+      RATE_LIMITED: "O Spotify limitou a consulta do catálogo. Tente novamente em instantes.",
+      SPOTIFY_NETWORK_ERROR: "O Spotify recusou ou não conseguiu concluir a consulta do catálogo.",
+      SPOTIFY_TIMEOUT: "O Spotify demorou demais para responder ao catálogo.",
+      SPOTIFY_DISCONNECTED: "Conecte o Spotify para completar esta discografia."
+    };
+    status(messages[error.message] || `Falha no catálogo Spotify: ${error.message || "erro desconhecido"}.`, "error");
     if (error.message === "SESSION_EXPIRED") {
       window.SoundScopeSpotify.disconnect();
       spotifySession = null;
